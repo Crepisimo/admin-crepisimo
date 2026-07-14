@@ -566,7 +566,7 @@ function ModalEgreso(props){
   var onSave=props.onSave,onClose=props.onClose;
   var insumosPorTienda=props.insumosPorTienda||{};
   var sV=useState({tipo:"",rubro:"",tienda:"",metodoPago:"",desc:"",monto:"",insumoId:"",cantidad:"",busqueda:"",err:""});
-  var v=sV[0];var setV=sV[1];
+  var gv=sV[0];var setV=sV[1];
   function upd(k,val){setV(function(p){var n={};for(var x in p)n[x]=p[x];n[k]=val;return n;});}
 
   // Paso 1: tipo de egreso
@@ -591,37 +591,37 @@ function ModalEgreso(props){
     {id:"tarjeta_angel",lbl:"💳 T. Angel"},
   ];
 
-  var insumosTienda=v.tienda?((insumosPorTienda[v.tienda])||[]):[];
-  var insFil=v.busqueda?insumosTienda.filter(function(i){return i.nombre.toLowerCase().indexOf(v.busqueda.toLowerCase())>=0;}):insumosTienda;
-  var insSel=insumosTienda.find(function(i){return i.id===v.insumoId;})||null;
+  var insumosTienda=gv.tienda?((insumosPorTienda[gv.tienda])||[]):[];
+  var insFil=gv.busqueda?insumosTienda.filter(function(i){return i.nombre.toLowerCase().indexOf(v.busqueda.toLowerCase())>=0;}):insumosTienda;
+  var insSel=insumosTienda.find(function(i){return i.id===gv.insumoId;})||null;
 
   async function guardar(){
-    if(!v.tipo){upd("err","Selecciona el tipo de egreso");return;}
-    if(!v.tienda&&v.tipo!=="personal"){upd("err","Selecciona la tienda");return;}
-    if(!v.metodoPago){upd("err","Selecciona el método de pago");return;}
-    if(!v.monto||parseFloat(v.monto)<=0){upd("err","Ingresa el monto");return;}
-    if(v.tipo==="mp_con_inv"&&!v.insumoId){upd("err","Selecciona el insumo");return;}
-    if(v.tipo==="mp_con_inv"&&(!v.cantidad||parseFloat(v.cantidad)<=0)){upd("err","Ingresa la cantidad");return;}
-    if(v.tipo==="personal"&&!v.rubro){upd("err","Selecciona el rubro");return;}
+    if(!gv.tipo){upd("err","Selecciona el tipo de egreso");return;}
+    if(!gv.tienda&&gv.tipo!=="personal"){upd("err","Selecciona la tienda");return;}
+    if(!gv.metodoPago){upd("err","Selecciona el método de pago");return;}
+    if(!gv.monto||parseFloat(v.monto)<=0){upd("err","Ingresa el monto");return;}
+    if(gv.tipo==="mp_con_inv"&&!gv.insumoId){upd("err","Selecciona el insumo");return;}
+    if(gv.tipo==="mp_con_inv"&&(!gv.cantidad||parseFloat(v.cantidad)<=0)){upd("err","Ingresa la cantidad");return;}
+    if(gv.tipo==="personal"&&!gv.rubro){upd("err","Selecciona el rubro");return;}
 
-    var tiendaFinal=v.tienda||"global";
-    var cant=v.tipo==="mp_con_inv"?parseFloat(v.cantidad):0;
+    var tiendaFinal=gv.tienda||"global";
+    var cant=gv.tipo==="mp_con_inv"?parseFloat(v.cantidad):0;
     var gasto={
       seccion:"externo",
-      tipo:v.tipo==="mp_con_inv"||v.tipo==="mp_sin_inv"?"insumo":v.rubro,
-      insumoId:v.tipo==="mp_con_inv"?v.insumoId:v.tipo==="mp_sin_inv"?"mp_sin_especificar":null,
-      insumoNombre:v.tipo==="mp_con_inv"?(insSel?insSel.nombre:""):v.tipo==="mp_sin_inv"?"Materia Prima (sin especificar)":null,
+      tipo:gv.tipo==="mp_con_inv"||gv.tipo==="mp_sin_inv"?"insumo":gv.rubro,
+      insumoId:gv.tipo==="mp_con_inv"?gv.insumoId:gv.tipo==="mp_sin_inv"?"mp_sin_especificar":null,
+      insumoNombre:gv.tipo==="mp_con_inv"?(insSel?insSel.nombre:""):gv.tipo==="mp_sin_inv"?"Materia Prima (sin especificar)":null,
       cantidad:cant,
-      unidad:v.tipo==="mp_con_inv"&&insSel?insSel.unidad:"",
+      unidad:gv.tipo==="mp_con_inv"&&insSel?insSel.unidad:"",
       monto:parseFloat(v.monto),
-      metodoPago:v.metodoPago,
-      desc:v.desc||"",
+      metodoPago:gv.metodoPago,
+      desc:gv.desc||"",
       tienda:tiendaFinal,
       timestamp:new Date().toISOString(),
     };
     // If mp_con_inv, update inventory delta
-    if(v.tipo==="mp_con_inv"&&v.insumoId&&cant>0){
-      try{await updateStockDelta(tiendaFinal,[{id:v.insumoId,delta:cant}]);}
+    if(gv.tipo==="mp_con_inv"&&gv.insumoId&&cant>0){
+      try{await updateStockDelta(tiendaFinal,[{id:gv.insumoId,delta:cant}]);}
       catch(e){console.error("Stock delta error:",e);}
     }
     onSave(gasto);
@@ -636,7 +636,7 @@ function ModalEgreso(props){
       re("div",{style:LB},"Tipo de egreso *"),
       re("div",{style:{display:"flex",flexDirection:"column",gap:8}},
         TIPOS.map(function(t){
-          var sel=v.tipo===t.id;
+          var sel=gv.tipo===t.id;
           return re("button",{key:t.id,type:"button",onClick:function(){upd("tipo",t.id);},
             style:{padding:"12px 14px",border:"2px solid "+(sel?C.dark:"#e0e0e0"),borderRadius:12,
               cursor:"pointer",textAlign:"left",background:sel?C.dark:"#fafafa",color:sel?"#fff":"#333"}},
@@ -648,11 +648,11 @@ function ModalEgreso(props){
     ),
 
     // Tienda (siempre, excepto para gastos personales que van a "global")
-    v.tipo?re("div",{style:{marginBottom:14}},
-      re("div",{style:LB},v.tipo==="personal"?"Tienda (opcional)":"Tienda *"),
+    gv.tipo?re("div",{style:{marginBottom:14}},
+      re("div",{style:LB},gv.tipo==="personal"?"Tienda (opcional)":"Tienda *"),
       re("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}},
-        (v.tipo==="personal"?[{id:"global",nombre:"Global",emoji:"🌐"}].concat(TIENDAS):TIENDAS).map(function(t){
-          var sel=v.tienda===t.id;
+        (gv.tipo==="personal"?[{id:"global",nombre:"Global",emoji:"🌐"}].concat(TIENDAS):TIENDAS).map(function(t){
+          var sel=gv.tienda===t.id;
           return re("button",{key:t.id,type:"button",onClick:function(){upd("tienda",t.id);upd("insumoId","");upd("busqueda","");},
             style:{padding:"9px 8px",border:"2px solid "+(sel?C.dark:"#e0e0e0"),borderRadius:10,
               cursor:"pointer",fontWeight:sel?800:500,background:sel?C.dark:"#fff",
@@ -664,11 +664,11 @@ function ModalEgreso(props){
     ):null,
 
     // Rubro (solo para gastos personales)
-    v.tipo==="personal"?re("div",{style:{marginBottom:14}},
+    gv.tipo==="personal"?re("div",{style:{marginBottom:14}},
       re("div",{style:LB},"Rubro *"),
       re("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}},
         RUBROS_PERSONAL.map(function(r){
-          var sel=v.rubro===r.id;
+          var sel=gv.rubro===r.id;
           return re("button",{key:r.id,type:"button",onClick:function(){upd("rubro",r.id);},
             style:{padding:"10px 8px",border:"2px solid "+(sel?C.dark:"#e0e0e0"),borderRadius:10,
               cursor:"pointer",fontWeight:sel?800:500,background:sel?C.dark:"#fff",
@@ -679,31 +679,31 @@ function ModalEgreso(props){
     ):null,
 
     // Insumo selector (solo para mp_con_inv)
-    v.tipo==="mp_con_inv"?re("div",{style:{marginBottom:14}},
+    gv.tipo==="mp_con_inv"?re("div",{style:{marginBottom:14}},
       re("div",{style:LB},"Insumo *"),
-      re("input",{type:"text",placeholder:"Buscar insumo...",value:v.busqueda,
+      re("input",{type:"text",placeholder:"Buscar insumo...",value:gv.busqueda,
         onChange:function(e){upd("busqueda",e.target.value);upd("insumoId","");},style:IP}),
-      v.busqueda&&insFil.length>0?re("div",{style:{border:"1.5px solid #e0e0e0",borderRadius:10,maxHeight:180,overflowY:"auto",marginTop:4}},
+      gv.busqueda&&insFil.length>0?re("div",{style:{border:"1.5px solid #e0e0e0",borderRadius:10,maxHeight:180,overflowY:"auto",marginTop:4}},
         insFil.slice(0,20).map(function(ins){
           return re("div",{key:ins.id,onClick:function(){upd("insumoId",ins.id);upd("busqueda",ins.nombre);},
             style:{padding:"8px 12px",cursor:"pointer",borderBottom:"1px solid #f5f5f5",
-              background:v.insumoId===ins.id?"#f3e8ff":"#fff",fontSize:13}},
+              background:gv.insumoId===ins.id?"#f3e8ff":"#fff",fontSize:13}},
             ins.nombre+" ("+ins.unidad+")"
           );
         })
       ):null,
-      v.tipo==="mp_con_inv"&&insSel?re("div",{style:{marginTop:8}},
+      gv.tipo==="mp_con_inv"&&insSel?re("div",{style:{marginTop:8}},
         re("div",{style:LB},"Cantidad ("+insSel.unidad+") *"),
-        re("input",{type:"number",placeholder:"0",value:v.cantidad,onChange:function(e){upd("cantidad",e.target.value);},style:IP})
+        re("input",{type:"number",placeholder:"0",value:gv.cantidad,onChange:function(e){upd("cantidad",e.target.value);},style:IP})
       ):null
     ):null,
 
     // Método de pago
-    v.tipo?re("div",{style:{marginBottom:14}},
+    gv.tipo?re("div",{style:{marginBottom:14}},
       re("div",{style:LB},"Pago con *"),
       re("div",{style:{display:"flex",gap:8}},
         METODOS.map(function(m){
-          var sel=v.metodoPago===m.id;
+          var sel=gv.metodoPago===m.id;
           return re("button",{key:m.id,type:"button",onClick:function(){upd("metodoPago",m.id);},
             style:{flex:1,padding:"10px 6px",border:"2px solid "+(sel?C.dark:"#e0e0e0"),borderRadius:10,
               cursor:"pointer",fontWeight:sel?800:500,background:sel?C.dark:"#fff",
@@ -714,23 +714,23 @@ function ModalEgreso(props){
     ):null,
 
     // Descripción
-    v.tipo?re("div",{style:{marginBottom:14}},
+    gv.tipo?re("div",{style:{marginBottom:14}},
       re("div",{style:LB},"Descripción (opcional)"),
-      re("input",{type:"text",placeholder:"Descripción...",value:v.desc,onChange:function(e){upd("desc",e.target.value);},style:IP})
+      re("input",{type:"text",placeholder:"Descripción...",value:gv.desc,onChange:function(e){upd("desc",e.target.value);},style:IP})
     ):null,
 
     // Monto
-    v.tipo?re("div",{style:{marginBottom:14}},
+    gv.tipo?re("div",{style:{marginBottom:14}},
       re("div",{style:LB},"Monto ($) *"),
-      re("input",{type:"number",placeholder:"0.00",value:v.monto,onChange:function(e){upd("monto",e.target.value);},
+      re("input",{type:"number",placeholder:"0.00",value:gv.monto,onChange:function(e){upd("monto",e.target.value);},
         style:Object.assign({},IP,{fontSize:22,fontWeight:700})})
     ):null,
 
-    v.err?re("div",{style:{color:C.red,fontSize:13,marginBottom:10,fontWeight:600}},v.err):null,
+    gv.err?re("div",{style:{color:C.red,fontSize:13,marginBottom:10,fontWeight:600}},v.err):null,
 
     re("div",{style:{display:"flex",gap:10,marginTop:4}},
       re("button",{type:"button",onClick:onClose,style:BS("#f0f0f0","#666")},"Cancelar"),
-      v.tipo?re("button",{type:"button",onClick:guardar,style:BS(C.dark,"#fff",2)},"Registrar Egreso"):null
+      gv.tipo?re("button",{type:"button",onClick:guardar,style:BS(C.dark,"#fff",2)},"Registrar Egreso"):null
     )
   ));
 }
