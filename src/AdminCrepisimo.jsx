@@ -4,35 +4,12 @@ import React, { useState, useEffect } from "react";
 var SB_URL="https://ctsijalwjuzmingdxozi.supabase.co";
 var SB_KEY="sb_publishable_LJZo3cGXe7hhzajWSogATw_A8vGfRO7";
 
-async function sbGet(table, query){
-  var url=SB_URL+"/rest/v1/"+table+(query?"?"+query:"");
-  var r=await fetch(url,{headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY}});
-  if(!r.ok)throw new Error(await r.text());
-  return r.json();
-}
-async function sbPost(table,body){
-  var r=await fetch(SB_URL+"/rest/v1/"+table,{method:"POST",headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify(body)});
-  if(!r.ok)throw new Error(await r.text());
-}
-async function sbPatch(table,query,body){
-  var r=await fetch(SB_URL+"/rest/v1/"+table+"?"+query,{method:"PATCH",headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY,"Content-Type":"application/json"},body:JSON.stringify(body)});
-  if(!r.ok)throw new Error(await r.text());
-}
-async function sbDelete(table,query){
-  var r=await fetch(SB_URL+"/rest/v1/"+table+"?"+query,{method:"DELETE",headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY}});
-  if(!r.ok)throw new Error(await r.text());
-}
-async function sbRpc(fn,params){
-  var r=await fetch(SB_URL+"/rest/v1/rpc/"+fn,{method:"POST",headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY,"Content-Type":"application/json"},body:JSON.stringify(params)});
-  if(!r.ok)throw new Error(await r.text());
-}
-async function updateStockDelta(tienda,deltas){
-  for(var i=0;i<deltas.length;i++){
-    var d=deltas[i];
-    if(!d.id||d.delta===0)continue;
-    await sbRpc("update_stock",{p_tienda:tienda,p_insumo_id:d.id,p_delta:d.delta});
-  }
-}
+async function sbGet(table,query){var url=SB_URL+"/rest/v1/"+table+(query?"?"+query:"");var r=await fetch(url,{headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY}});if(!r.ok)throw new Error(await r.text());return r.json();}
+async function sbPost(table,body){var r=await fetch(SB_URL+"/rest/v1/"+table,{method:"POST",headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify(body)});if(!r.ok)throw new Error(await r.text());}
+async function sbPatch(table,query,body){var r=await fetch(SB_URL+"/rest/v1/"+table+"?"+query,{method:"PATCH",headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY,"Content-Type":"application/json"},body:JSON.stringify(body)});if(!r.ok)throw new Error(await r.text());}
+async function sbDelete(table,query){var r=await fetch(SB_URL+"/rest/v1/"+table+"?"+query,{method:"DELETE",headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY}});if(!r.ok)throw new Error(await r.text());}
+async function sbRpc(fn,params){var r=await fetch(SB_URL+"/rest/v1/rpc/"+fn,{method:"POST",headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY,"Content-Type":"application/json"},body:JSON.stringify(params)});if(!r.ok)throw new Error(await r.text());}
+async function updateStockDelta(tienda,deltas){for(var i=0;i<deltas.length;i++){var d=deltas[i];if(!d.id||d.delta===0)continue;await sbRpc("update_stock",{p_tienda:tienda,p_insumo_id:d.id,p_delta:d.delta});}}
 
 // ─── HELPERS ──────────────────────────────────────────────────────────
 var re = React.createElement;
@@ -63,15 +40,8 @@ function BS(bg,color,fw){return{background:bg,color:color,border:"none",borderRa
 var SC={fontSize:10,fontWeight:800,color:"#aaa",textTransform:"uppercase",letterSpacing:1,marginBottom:10};
 
 // ─── TIENDAS ──────────────────────────────────────────────────────────
-var TIENDAS=[
-  {id:"centro",nombre:"Crepisimo Centro",emoji:"🏪",color:"#7c3aed"},
-  {id:"sanantonio",nombre:"Crepisimo S.Antonio",emoji:"🏬",color:"#7c3aed"},
-  {id:"amburger",nombre:"AM-Burger",emoji:"🍔",color:"#ea580c"},
-  {id:"tichi",nombre:"Tichi",emoji:"🧪",color:"#059669"},
-];
-var META_MP=0.32;
-var META_MP_AMB=0.42;
-var META_MP_TICHI=0.25;
+var TIENDAS=[{id:"centro",nombre:"Crepisimo Centro",emoji:"🏪",color:"#7c3aed"},{id:"sanantonio",nombre:"Crepisimo S.Antonio",emoji:"🏬",color:"#7c3aed"},{id:"amburger",nombre:"AM-Burger",emoji:"🍔",color:"#ea580c"},{id:"tichi",nombre:"Tichi",emoji:"🧪",color:"#059669"}];
+var META_MP=0.32;var META_MP_AMB=0.42;var META_MP_TICHI=0.25;
 
 // ─── INSUMOS ──────────────────────────────────────────────────────────
 var INSUMOS_INIT=[
@@ -244,7 +214,6 @@ var MENU=[
 ];
 
 // ── AM-BURGER DATA ──────────────────────────────────────
-v
 var INSUMOS_AMB=[
   {id:"amb_carne",nombre:"Carne angus",unidad:"g",minimo:3000},
   {id:"amb_salchicha",nombre:"Salchicha",unidad:"pza",minimo:10},
@@ -285,8 +254,6 @@ var INSUMOS_AMB=[
   {id:"amb_cebolla_caramelizada",nombre:"Cebolla caramelizada",unidad:"g",minimo:200},
 ];
 function mkInsumosAmb(){return INSUMOS_AMB.map(function(i){return Object.assign({},i,{stock:0});});}
-
-
 var INSUMOS_TICHI_MP = [
   {id:"ti_azucar",nombre:"Azucar",unidad:"kg",minimo:25},
   {id:"ti_agua",nombre:"Agua natural",unidad:"L",minimo:20},
@@ -356,75 +323,13 @@ var INSUMOS_TICHI_PT = [
   {id:"ti_pt_azucar_masa",nombre:"Azucar para masa 240g",unidad:"bolsa",minimo:5},
 ];
 
-// ─── RECETAS BASE ─────────────────────────────────────────────────────
+// ─── RECETAS ──────────────────────────────────────────────────────────
 var MB=[
   {id:"harina",c:760/21},{id:"azucar_masa",c:240/21},
   {id:"leche_masa",c:2/21},{id:"mant_masa",c:90/21},
   {id:"liquido_amarillo",c:20/21},{id:"caja_crepa",c:1},{id:"papel_alim",c:1},
 ];
 
-
-var R={
-  "Oreo":[{id:"leche_deslac",c:118.3},{id:"oreo",c:59.1},{id:"choc_polvo",c:8.9},{id:"base_neutra",c:29.6},{id:"hielo",c:0.2957},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
-  "Mango-Taro":[{id:"leche_deslac",c:118.3},{id:"jar_mango",c:118.3},{id:"mango",c:29.6},{id:"base_neutra",c:29.6},{id:"hielo",c:0.2662},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
-  "Chocolate":[{id:"leche_deslac",c:118.3},{id:"choc_polvo",c:44.4},{id:"base_neutra",c:29.6},{id:"hielo",c:0.2957},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
-  "Capuchino Regular":[{id:"leche_deslac",c:88.7},{id:"cafe_grano",c:59.1},{id:"base_neutra",c:59.1},{id:"hielo",c:0.2957},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
-  "Capuchino Cajeta":[{id:"leche_deslac",c:88.7},{id:"cafe_grano",c:59.1},{id:"base_neutra",c:29.6},{id:"jar_caramelo",c:118.3},{id:"hielo",c:0.2957},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
-  "Capuchino Banana":[{id:"leche_deslac",c:88.7},{id:"cafe_grano",c:59.1},{id:"base_neutra",c:29.6},{id:"jar_banana",c:118.3},{id:"hielo",c:0.2957},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
-  "Brownie":[{id:"leche_deslac",c:118.3},{id:"brownie",c:73.9},{id:"jar_chocolate",c:59.1},{id:"base_neutra",c:29.6},{id:"choc_polvo",c:14.8},{id:"hielo",c:0.2662},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
-  "Moca F":[{id:"leche_deslac",c:88.7},{id:"cafe_grano",c:59.1},{id:"jar_chocolate",c:29.6},{id:"base_neutra",c:38.4},{id:"choc_polvo",c:29.6},{id:"hielo",c:0.2662},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
-  "Pina Colada":[{id:"leche_deslac",c:118.3},{id:"jar_pina",c:29.6},{id:"pina",c:29.6},{id:"jar_coco",c:118.3},{id:"base_neutra",c:29.6},{id:"coco_rayado",c:2},{id:"hielo",c:0.2662},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
-  "3 Leches":[{id:"lechera",c:44.4},{id:"cafe_grano",c:44.4},{id:"hielo",c:0.1479},{id:"leche_deslac",c:236.6},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
-  "Caramelo":[{id:"hielo",c:0.1479},{id:"leche_deslac",c:266.2},{id:"jar_caramelo",c:88.7},{id:"cafe_grano",c:44.4},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
-  "Avellana":[{id:"hielo",c:0.1479},{id:"leche_deslac",c:266.2},{id:"jar_avellana",c:88.7},{id:"cafe_grano",c:44.4},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
-  "Latte Frio":[{id:"cafe_grano",c:44.4},{id:"hielo",c:0.2366},{id:"leche_deslac",c:236.6},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
-  "Moca CF":[{id:"cafe_grano",c:44.4},{id:"choc_polvo",c:20.7},{id:"jar_chocolate",c:29.6},{id:"hielo",c:0.1479},{id:"leche_deslac",c:266.2},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
-  "Americano":[{id:"cafe_grano",c:59.1},{id:"vaso_carton",c:1},{id:"tapa_carton",c:1}],
-  "Espresso":[{id:"cafe_grano",c:59.1},{id:"vaso_carton",c:1},{id:"tapa_carton",c:1}],
-  "Capuchino CC":[{id:"cafe_grano",c:44.4},{id:"leche_deslac",c:266.2},{id:"vaso_carton",c:1},{id:"tapa_carton",c:1}],
-  "Latte":[{id:"cafe_grano",c:29.6},{id:"leche_deslac",c:266.2},{id:"vaso_carton",c:1},{id:"tapa_carton",c:1}],
-  "Moca CC":[{id:"cafe_grano",c:38.4},{id:"choc_polvo",c:29.6},{id:"leche_deslac",c:266.2},{id:"vaso_carton",c:1},{id:"tapa_carton",c:1}],
-  "Chocolate CC":[{id:"leche_deslac",c:270},{id:"choc_polvo",c:36},{id:"vaso_carton",c:1},{id:"tapa_carton",c:1}],
-  "Latte Sin Azucar":[{id:"leche_vegetal",c:236.6},{id:"monk_fruit",c:1},{id:"cafe_grano",c:44.4},{id:"hielo",c:0.1183},{id:"vaso_carton",c:1},{id:"tapa_carton",c:1}],
-  "Fresa Platano":[{id:"yogurt",c:88.7},{id:"leche_deslac",c:29.6},{id:"base_neutra",c:29.6},{id:"fresa",c:59.1},{id:"platano",c:0.5},{id:"jar_fresa",c:29.6},{id:"hielo",c:0.2662},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
-  "Mango Durazno":[{id:"yogurt",c:88.7},{id:"leche_deslac",c:29.6},{id:"base_neutra",c:29.6},{id:"mango",c:59.1},{id:"durazno_almibar",c:1},{id:"jar_mango",c:44.4},{id:"hielo",c:0.2662},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
-  "Slush Fresa":[{id:"agua_mineral",c:147.9},{id:"base_cristal",c:29.6},{id:"fresa",c:59.1},{id:"jar_fresa",c:147.9},{id:"hielo",c:0.2662},{id:"chamoy",c:20},{id:"tajin",c:4},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
-  "Slush Mango":[{id:"agua_mineral",c:147.9},{id:"base_cristal",c:29.6},{id:"mango",c:59.1},{id:"jar_mango",c:118.3},{id:"hielo",c:0.2662},{id:"chamoy",c:20},{id:"tajin",c:4},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
-  "Slush Pina":[{id:"agua_mineral",c:147.9},{id:"base_cristal",c:29.6},{id:"pina",c:59.1},{id:"jar_pina",c:118.3},{id:"hielo",c:0.2662},{id:"chamoy",c:20},{id:"tajin",c:4},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
-  "Pink Lemonade":[{id:"jar_fresa",c:pp(6)},{id:"perlas_fresa",c:oz(1)},{id:"agua_mineral",c:oz(10)},{id:"hielo",c:0.1774},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
-  "Manzana Verde":[{id:"jar_manzana",c:pp(6)},{id:"perlas_manzana",c:oz(1)},{id:"agua_mineral",c:oz(10)},{id:"hielo",c:0.1774},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
-  "Mora Azul":[{id:"jar_mora",c:pp(6)},{id:"perlas_mora",c:oz(1)},{id:"agua_mineral",c:oz(10)},{id:"hielo",c:0.1774},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
-  "Soda Fresa":[{id:"jar_fresa",c:pp(6)},{id:"perlas_fresa",c:oz(1)},{id:"agua_mineral",c:oz(10)},{id:"hielo",c:0.1774},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
-  "Soda Mango":[{id:"jar_mango",c:pp(6)},{id:"perlas_mango",c:oz(1)},{id:"agua_mineral",c:oz(10)},{id:"hielo",c:0.1774},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
-  "Soda Frutos Rojos":[{id:"jar_frutos_rojos",c:oz(2)},{id:"hielo",c:0.1774},{id:"perlas_fresa",c:oz(1)},{id:"agua_mineral",c:oz(8)},{id:"hielo",c:0.1774},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
-  "Sandia":[{id:"jar_sandia",c:pp(6)},{id:"agua_mineral",c:oz(10)},{id:"hielo",c:0.1774},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
-  "Matchata":[{id:"base_horchata",c:oz(2)},{id:"leche_deslac",c:oz(6)},{id:"matcha",c:3},{id:"agua_natural",c:0.03},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
-  "Nube Tejate":[{id:"tejate",c:oz(3)},{id:"leche_deslac",c:oz(6)},{id:"hielo",c:0.2957},{id:"base_neutra",c:oz(2)},{id:"nibs_cacao",c:2},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
-  "Mango Pop":[{id:"jar_coco",c:pp(4)},{id:"jar_mango",c:pp(1)},{id:"perlas_mango",c:oz(1)},{id:"mango",c:oz(1)},{id:"agua_mineral",c:oz(9)},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
-  "Berry Chill":[{id:"tisana_frutos",c:14},{id:"agua_natural",c:0.39},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
-  "DLiss":MB.concat([{id:"philadelphia",c:35},{id:"fresa",c:55},{id:"nuez",c:12},{id:"kinder_delice",c:1},{id:"nutella",c:20}]),
-  "Ok":MB.concat([{id:"philadelphia",c:35},{id:"fresa",c:55},{id:"gansito",c:1},{id:"nutella",c:20}]),
-  "Pink L":MB.concat([{id:"philadelphia",c:35},{id:"fresa",c:55},{id:"almendra",c:12},{id:"platano",c:0.5},{id:"lechera",c:20}]),
-  "Pink C":MB.concat([{id:"philadelphia",c:35},{id:"fresa",c:55},{id:"almendra",c:12},{id:"platano",c:0.5},{id:"cajeta",c:20}]),
-  "Cake Fresa":MB.concat([{id:"philadelphia",c:35},{id:"fresa",c:55},{id:"nuez",c:12},{id:"lechera",c:10},{id:"crema_batida",c:15}]),
-  "Cake Durazno":MB.concat([{id:"durazno_almibar",c:1},{id:"philadelphia",c:35},{id:"nuez",c:12},{id:"lechera",c:10},{id:"crema_batida",c:15}]),
-  "Chocolatisima":MB.concat([{id:"nutella",c:35},{id:"brownie",c:50},{id:"nuez",c:12},{id:"nutella",c:20}]),
-  "Pepperonisima":MB.concat([{id:"philadelphia",c:35},{id:"mozzarella",c:40},{id:"jamon",c:70},{id:"pepperoni",c:50}]),
-  "Hawaii":MB.concat([{id:"philadelphia",c:35},{id:"mozzarella",c:40},{id:"jamon",c:70},{id:"pina_almibar",c:1}]),
-  "Crepizzima":MB.concat([{id:"mozzarella",c:40},{id:"pepperoni",c:50},{id:"salsa_tomate",c:35},{id:"champi",c:20}]),
-  "__crepisima__":MB,
-  "Tapioca":[{id:"tapioca",c:1}],
-  "DLiss":       [{id:"harina",c:760/21},{id:"azucar_masa",c:240/21},{id:"leche_masa",c:2/21},{id:"mant_masa",c:90/21},{id:"liquido_amarillo",c:20/21},{id:"caja_crepa",c:1},{id:"papel_alim",c:1},{id:"fresa",c:55},{id:"philadelphia",c:35},{id:"nuez",c:12},{id:"kinder_delice",c:1},{id:"nutella",c:20}],
-  "Ok":          [{id:"harina",c:760/21},{id:"azucar_masa",c:240/21},{id:"leche_masa",c:2/21},{id:"mant_masa",c:90/21},{id:"liquido_amarillo",c:20/21},{id:"caja_crepa",c:1},{id:"papel_alim",c:1},{id:"fresa",c:55},{id:"philadelphia",c:35},{id:"gansito",c:1},{id:"nutella",c:20}],
-  "Pink L":      [{id:"harina",c:760/21},{id:"azucar_masa",c:240/21},{id:"leche_masa",c:2/21},{id:"mant_masa",c:90/21},{id:"liquido_amarillo",c:20/21},{id:"caja_crepa",c:1},{id:"papel_alim",c:1},{id:"fresa",c:55},{id:"philadelphia",c:35},{id:"almendra",c:12},{id:"platano",c:0.5},{id:"lechera",c:20}],
-  "Pink C":      [{id:"harina",c:760/21},{id:"azucar_masa",c:240/21},{id:"leche_masa",c:2/21},{id:"mant_masa",c:90/21},{id:"liquido_amarillo",c:20/21},{id:"caja_crepa",c:1},{id:"papel_alim",c:1},{id:"fresa",c:55},{id:"philadelphia",c:35},{id:"almendra",c:12},{id:"platano",c:0.5},{id:"cajeta",c:20}],
-  "Cake Fresa":  [{id:"harina",c:760/21},{id:"azucar_masa",c:240/21},{id:"leche_masa",c:2/21},{id:"mant_masa",c:90/21},{id:"liquido_amarillo",c:20/21},{id:"caja_crepa",c:1},{id:"papel_alim",c:1},{id:"fresa",c:55},{id:"philadelphia",c:35},{id:"nuez",c:12},{id:"lechera",c:10},{id:"crema_batida",c:15}],
-  "Cake Durazno":[{id:"harina",c:760/21},{id:"azucar_masa",c:240/21},{id:"leche_masa",c:2/21},{id:"mant_masa",c:90/21},{id:"liquido_amarillo",c:20/21},{id:"caja_crepa",c:1},{id:"papel_alim",c:1},{id:"durazno_almibar",c:1},{id:"philadelphia",c:35},{id:"nuez",c:12},{id:"lechera",c:10},{id:"crema_batida",c:15}],
-  "Chocolatisima":[{id:"harina",c:760/21},{id:"azucar_masa",c:240/21},{id:"leche_masa",c:2/21},{id:"mant_masa",c:90/21},{id:"liquido_amarillo",c:20/21},{id:"caja_crepa",c:1},{id:"papel_alim",c:1},{id:"nutella",c:35},{id:"brownie",c:50},{id:"nuez",c:12},{id:"nutella",c:20}],
-  "Pepperonisima":[{id:"harina",c:760/21},{id:"azucar_masa",c:240/21},{id:"leche_masa",c:2/21},{id:"mant_masa",c:90/21},{id:"liquido_amarillo",c:20/21},{id:"caja_crepa",c:1},{id:"papel_alim",c:1},{id:"philadelphia",c:35},{id:"mozzarella",c:40},{id:"jamon",c:70},{id:"pepperoni",c:50}],
-  "Hawaii":      [{id:"harina",c:760/21},{id:"azucar_masa",c:240/21},{id:"leche_masa",c:2/21},{id:"mant_masa",c:90/21},{id:"liquido_amarillo",c:20/21},{id:"caja_crepa",c:1},{id:"papel_alim",c:1},{id:"philadelphia",c:35},{id:"mozzarella",c:40},{id:"jamon",c:70},{id:"pina_almibar",c:1}],
-  "Crepizzima":  [{id:"harina",c:760/21},{id:"azucar_masa",c:240/21},{id:"leche_masa",c:2/21},{id:"mant_masa",c:90/21},{id:"liquido_amarillo",c:20/21},{id:"caja_crepa",c:1},{id:"papel_alim",c:1},{id:"mozzarella",c:40},{id:"pepperoni",c:50},{id:"salsa_tomate",c:35},{id:"champi",c:20}],
-}
 var R_AMB={
   "Chaoo":BP.concat([{id:"amb_q_americano",c:1},{id:"amb_q_manchego",c:1},{id:"amb_chile_jalapeno",c:50},{id:"amb_lechuga",c:1}]).concat(GU).concat([{id:"amb_papel_termico",c:1}]),
   "Patrona":BP.concat(AD).concat([{id:"amb_q_americano",c:1},{id:"amb_tocino",c:50},{id:"amb_salchicha",c:0.5},{id:"amb_tomate",c:66},{id:"amb_lechuga",c:1}]).concat([{id:"amb_papel_termico",c:1}]),
@@ -524,14 +429,6 @@ var CD={
 };
 
 
-var TI_BASE_SODA_L = [{id:"ti_azucar",c:0.800},{id:"ti_agua",c:0.480},{id:"ti_acido",c:0.01648},{id:"ti_benzoato",c:0.001}];
-var TI_BASE_CAFE_L = [{id:"ti_azucar",c:0.800},{id:"ti_agua",c:0.480},{id:"ti_benzoato",c:0.001}];
-var TI_PACK_BOT = [{id:"ti_botella",c:1},{id:"ti_etiqueta_bot",c:1}];
-var TI_PACK_BOL = [{id:"ti_bolsa",c:1},{id:"ti_etiqueta_bol",c:1}];
-
-// Recetas por litro = base + sabor + color + empaque
-var
-
 R_TICHI_PROD = {
   "ti_pt_mora":    TI_BASE_SODA_L.concat([{id:"ti_sab_mora",c:0.033},{id:"ti_color_mora",c:1}]).concat(TI_PACK_BOT),
   "ti_pt_manzana": TI_BASE_SODA_L.concat([{id:"ti_sab_manzana",c:0.033},{id:"ti_color_verde",c:1}]).concat(TI_PACK_BOT),
@@ -559,6 +456,7 @@ R_TICHI_PROD = {
   "ti_pt_choc_polvo":   [{id:"ti_cocoa",c:0.130},{id:"ti_choc_mp",c:0.870}].concat(TI_PACK_BOL),
   "ti_pt_azucar_masa":  [{id:"ti_azucar",c:0.2285},{id:"ti_sal",c:0.0035},{id:"ti_albumina",c:0.009},{id:"ti_polvo_hornear",c:0.003},{id:"ti_goma",c:0.004},{id:"ti_bolsa",c:1}],
 };
+
 
 
 // ─── MODAL EGRESO ─────────────────────────────────────────────────────
@@ -592,20 +490,20 @@ function ModalEgreso(props){
   ];
 
   var insumosTienda=gv.tienda?((insumosPorTienda[gv.tienda])||[]):[];
-  var insFil=gv.busqueda?insumosTienda.filter(function(i){return i.nombre.toLowerCase().indexOf(v.busqueda.toLowerCase())>=0;}):insumosTienda;
+  var insFil=gv.busqueda?insumosTienda.filter(function(i){return i.nombre.toLowerCase().indexOf(gv.busqueda.toLowerCase())>=0;}):insumosTienda;
   var insSel=insumosTienda.find(function(i){return i.id===gv.insumoId;})||null;
 
   async function guardar(){
     if(!gv.tipo){upd("err","Selecciona el tipo de egreso");return;}
     if(!gv.tienda&&gv.tipo!=="personal"){upd("err","Selecciona la tienda");return;}
     if(!gv.metodoPago){upd("err","Selecciona el método de pago");return;}
-    if(!gv.monto||parseFloat(v.monto)<=0){upd("err","Ingresa el monto");return;}
+    if(!gv.monto||parseFloat(gv.monto)<=0){upd("err","Ingresa el monto");return;}
     if(gv.tipo==="mp_con_inv"&&!gv.insumoId){upd("err","Selecciona el insumo");return;}
-    if(gv.tipo==="mp_con_inv"&&(!gv.cantidad||parseFloat(v.cantidad)<=0)){upd("err","Ingresa la cantidad");return;}
+    if(gv.tipo==="mp_con_inv"&&(!gv.cantidad||parseFloat(gv.cantidad)<=0)){upd("err","Ingresa la cantidad");return;}
     if(gv.tipo==="personal"&&!gv.rubro){upd("err","Selecciona el rubro");return;}
 
     var tiendaFinal=gv.tienda||"global";
-    var cant=gv.tipo==="mp_con_inv"?parseFloat(v.cantidad):0;
+    var cant=gv.tipo==="mp_con_inv"?parseFloat(gv.cantidad):0;
     var gasto={
       seccion:"externo",
       tipo:gv.tipo==="mp_con_inv"||gv.tipo==="mp_sin_inv"?"insumo":gv.rubro,
@@ -613,7 +511,7 @@ function ModalEgreso(props){
       insumoNombre:gv.tipo==="mp_con_inv"?(insSel?insSel.nombre:""):gv.tipo==="mp_sin_inv"?"Materia Prima (sin especificar)":null,
       cantidad:cant,
       unidad:gv.tipo==="mp_con_inv"&&insSel?insSel.unidad:"",
-      monto:parseFloat(v.monto),
+      monto:parseFloat(gv.monto),
       metodoPago:gv.metodoPago,
       desc:gv.desc||"",
       tienda:tiendaFinal,
@@ -726,7 +624,7 @@ function ModalEgreso(props){
         style:Object.assign({},IP,{fontSize:22,fontWeight:700})})
     ):null,
 
-    gv.err?re("div",{style:{color:C.red,fontSize:13,marginBottom:10,fontWeight:600}},v.err):null,
+    gv.err?re("div",{style:{color:C.red,fontSize:13,marginBottom:10,fontWeight:600}},gv.err):null,
 
     re("div",{style:{display:"flex",gap:10,marginTop:4}},
       re("button",{type:"button",onClick:onClose,style:BS("#f0f0f0","#666")},"Cancelar"),
