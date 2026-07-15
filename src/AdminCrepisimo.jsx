@@ -1088,6 +1088,82 @@ function EgresosAdmin(props) {
 }
 
 
+// ═══ TRANSFERENCIA DE DINERO ════════════════════════════════════════
+function ModalTransferenciaDinero(props) {
+  var onSave = props.onSave, onClose = props.onClose;
+  var st1 = useState(""); var de = st1[0]; var setDe = st1[1];
+  var st2 = useState(""); var para = st2[0]; var setPara = st2[1];
+  var st3 = useState(""); var monto = st3[0]; var setMonto = st3[1];
+  var st4 = useState(""); var desc = st4[0]; var setDesc = st4[1];
+  var st5 = useState(""); var err = st5[0]; var setErr = st5[1];
+
+  var METODOS = [
+    { id:"efectivo", lbl:"💵 Efectivo" },
+    { id:"tarjeta_migue", lbl:"💳 T. Migue" },
+    { id:"tarjeta_angel", lbl:"💳 T. Angel" },
+  ];
+  function lbl(id) { var m = METODOS.find(function(x){return x.id===id;}); return m?m.lbl:id; }
+
+  function guardar() {
+    if (!de) { setErr("Selecciona origen"); return; }
+    if (!para) { setErr("Selecciona destino"); return; }
+    if (de === para) { setErr("Origen y destino deben ser diferentes"); return; }
+    if (!monto || parseFloat(monto) <= 0) { setErr("Ingresa el monto"); return; }
+    var descFinal = lbl(de).replace(/[💵💳]/g,"").trim() + "->" + lbl(para).replace(/[💵💳]/g,"").trim() + (desc?" - "+desc:"");
+    onSave({
+      tipo:"transf_tarjeta", seccion:"externo",
+      monto:parseFloat(monto), desc:descFinal,
+      metodoPago:de, timestamp:new Date().toISOString(),
+      tienda:"global", insumoId:"", insumoNombre:"", cantidad:0, unidad:""
+    });
+    onClose();
+  }
+
+  return re("div", { style:OV }, re("div", { style:MD },
+    re("div", { style:{ fontSize:18, fontWeight:900, color:C.dark, marginBottom:16 } }, "↔ Transferencia de dinero"),
+    re("div", { style:{ marginBottom:14 } },
+      re("div", { style:LB }, "De"),
+      re("div", { style:{ display:"flex", gap:8 } },
+        METODOS.map(function(m) {
+          var sel = de === m.id;
+          return re("button", { key:m.id, type:"button", onClick:function(){ setDe(m.id); setErr(""); },
+            style:{ flex:1, padding:"10px 4px", border:"2px solid "+(sel?C.dark:"#e0e0e0"), borderRadius:10,
+              cursor:"pointer", fontWeight:sel?800:500, background:sel?C.dark:"#fff",
+              color:sel?"#fff":"#666", fontSize:11, textAlign:"center" } }, m.lbl);
+        })
+      )
+    ),
+    re("div", { style:{ marginBottom:14 } },
+      re("div", { style:LB }, "Para"),
+      re("div", { style:{ display:"flex", gap:8 } },
+        METODOS.map(function(m) {
+          var sel = para === m.id;
+          return re("button", { key:m.id, type:"button", onClick:function(){ setPara(m.id); setErr(""); },
+            style:{ flex:1, padding:"10px 4px", border:"2px solid "+(sel?C.dark:"#e0e0e0"), borderRadius:10,
+              cursor:"pointer", fontWeight:sel?800:500, background:sel?C.dark:"#fff",
+              color:sel?"#fff":"#666", fontSize:11, textAlign:"center" } }, m.lbl);
+        })
+      )
+    ),
+    re("div", { style:{ marginBottom:12 } },
+      re("div", { style:LB }, "Monto ($)"),
+      re("input", { type:"number", placeholder:"0.00", value:monto,
+        onChange:function(e){ setMonto(e.target.value); },
+        style:Object.assign({}, IP, { fontSize:22, fontWeight:700 }) })
+    ),
+    re("div", { style:{ marginBottom:14 } },
+      re("div", { style:LB }, "Descripción (opcional)"),
+      re("input", { type:"text", placeholder:"...", value:desc,
+        onChange:function(e){ setDesc(e.target.value); }, style:IP })
+    ),
+    err ? re("div", { style:{ color:C.red, fontSize:13, marginBottom:10, fontWeight:600 } }, err) : null,
+    re("div", { style:{ display:"flex", gap:10 } },
+      re("button", { type:"button", onClick:onClose, style:BS("#f0f0f0","#666") }, "Cancelar"),
+      re("button", { type:"button", onClick:guardar, style:BS(C.dark,"#fff",2) }, "Registrar transferencia")
+    )
+  ));
+}
+
 // ═══ ADMIN APP ══════════════════════════════════════════════════════
 export default function AdminApp() {
   var st1 = useState(true); var cargando = st1[0]; var setCargando = st1[1];
@@ -1099,6 +1175,7 @@ export default function AdminApp() {
   var st7 = useState([]); var ventas = st7[0]; var setVentas = st7[1];
   var st8 = useState({ centro:[], sanantonio:[], amburger:[], tichi:[] });
   var inv = st8[0]; var setInv = st8[1];
+  var st9 = useState(false); var modalTransf = st9[0]; var setModalTransf = st9[1];
 
   function mkIns(base) { return base.map(function(i) { return Object.assign({},i,{stock:0}); }); }
 
@@ -1205,6 +1282,47 @@ export default function AdminApp() {
 
   var insPorTienda = { centro:inv.centro, sanantonio:inv.sanantonio, amburger:inv.amburger, tichi:inv.tichi };
 
+  // Control de Materia Prima por tienda
+  var tvCrep = ventas.filter(function(v){return v.tienda==="centro"||v.tienda==="sanantonio";}).reduce(function(s,v){return s+v.total;},0);
+  var tvAmb = ventas.filter(function(v){return v.tienda==="amburger";}).reduce(function(s,v){return s+v.total;},0);
+  var tvTichi = ventas.filter(function(v){return v.tienda==="tichi";}).reduce(function(s,v){return s+v.total;},0);
+  var gastosInsCrep = gastos.filter(function(g){return g.tipo==="insumo"&&(g.tienda==="centro"||g.tienda==="sanantonio");}).reduce(function(s,g){return s+g.monto;},0);
+  var gastosInsAmb = gastos.filter(function(g){return g.tipo==="insumo"&&g.tienda==="amburger";}).reduce(function(s,g){return s+g.monto;},0);
+  var gastosInsTichi = gastos.filter(function(g){return g.tipo==="insumo"&&g.tienda==="tichi";}).reduce(function(s,g){return s+g.monto;},0);
+  var presupCrep = tvCrep * META_MP;
+  var presupAmb = tvAmb * META_MP_AMB;
+  var presupTichi = tvTichi * META_MP_TICHI;
+  var pctCrep = presupCrep > 0 ? Math.min(100, gastosInsCrep/presupCrep*100) : 0;
+  var pctAmb = presupAmb > 0 ? Math.min(100, gastosInsAmb/presupAmb*100) : 0;
+  var pctTichi = presupTichi > 0 ? Math.min(100, gastosInsTichi/presupTichi*100) : 0;
+
+  // Valor del inventario
+  function calcValor(insArr) {
+    return insArr.reduce(function(s,i) {
+      return s + (i.costoPorU||0)*(i.stock||0);
+    }, 0);
+  }
+  var valCrep = calcValor(inv.centro) + calcValor(inv.sanantonio);
+  var valAmb = calcValor(inv.amburger);
+  var valTichi = calcValor(inv.tichi);
+  var valTotal = valCrep + valAmb + valTichi;
+
+  // Saldos por método de pago (acumulado todo el tiempo)
+  // Saldos por método de pago (igual que POS FinanzasGlobal)
+  var ingEfectivo=ventas.filter(function(v){return v.metodo==="efectivo";}).reduce(function(s,v){return s+v.total;},0);
+  var egreEfectivo=gastos.filter(function(g){return g.tipo!=="transf_tarjeta"&&(g.metodoPago==="efectivo"||(!g.metodoPago&&g.seccion==="caja"&&g.tipo!=="operativo")||g.tipo==="colaborador");}).reduce(function(s,g){return s+g.monto;},0);
+  var ingMigue=ventas.filter(function(v){return (v.metodo==="clip"&&v.terminalClip==="migue")||(v.metodo==="didi"&&v.estadoPago==="pagado");}).reduce(function(s,v){return s+(v.netoRecibido||v.total);},0);
+  var egreMigue=gastos.filter(function(g){return g.tipo!=="transf_tarjeta"&&g.metodoPago==="tarjeta_migue";}).reduce(function(s,g){return s+g.monto;},0);
+  var ingAngel=ventas.filter(function(v){return (v.metodo==="clip"&&v.terminalClip==="angel")||(v.metodo==="transferencia")||(v.metodo==="mercadolibre"&&v.estadoPago==="pagado");}).reduce(function(s,v){return s+(v.netoRecibido||v.total);},0);
+  var egreAngel=gastos.filter(function(g){return g.tipo!=="transf_tarjeta"&&g.metodoPago==="tarjeta_angel";}).reduce(function(s,g){return s+g.monto;},0);
+  var transfMigueAAngel=gastos.filter(function(g){return g.tipo==="transf_tarjeta"&&g.desc&&g.desc.indexOf("T.Migue->")>=0;}).reduce(function(s,g){return s+g.monto;},0);
+  var transfAngelAMigue=gastos.filter(function(g){return g.tipo==="transf_tarjeta"&&g.desc&&g.desc.indexOf("T.Angel->T.Migue")>=0;}).reduce(function(s,g){return s+g.monto;},0);
+  var transfEfectivoAMigue=gastos.filter(function(g){return g.tipo==="transf_tarjeta"&&g.desc&&g.desc.indexOf("Efectivo->T.Migue")>=0;}).reduce(function(s,g){return s+g.monto;},0);
+  var transfEfectivoAAngel=gastos.filter(function(g){return g.tipo==="transf_tarjeta"&&g.desc&&g.desc.indexOf("Efectivo->T.Angel")>=0;}).reduce(function(s,g){return s+g.monto;},0);
+  var saldoEfectivo=ingEfectivo-egreEfectivo-transfEfectivoAMigue-transfEfectivoAAngel;
+  var saldoMigue=ingMigue-egreMigue-transfMigueAAngel+transfAngelAMigue+transfEfectivoAMigue;
+  var saldoAngel=ingAngel-egreAngel-transfAngelAMigue+transfMigueAAngel+transfEfectivoAAngel;
+
   if (cargando) return re("div", { style:{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", flexDirection:"column", gap:16 } },
     re("div", { style:{ fontSize:40 } }, "⏳"),
     re("div", { style:{ fontSize:16, color:"#888" } }, "Cargando datos...")
@@ -1221,9 +1339,14 @@ export default function AdminApp() {
         re("div", { style:{ fontSize:20, fontWeight:900 } }, "📊 Admin Crepisimo"),
         re("div", { style:{ fontSize:12, opacity:0.8 } }, "Panel de administración")
       ),
-      re("button", { onClick:function() { setModalEgr(true); },
-        style:{ background:"rgba(255,255,255,0.2)", color:"#fff", border:"none", borderRadius:12,
-          padding:"10px 16px", fontSize:13, fontWeight:700, cursor:"pointer" } }, "+ Egreso")
+      re("div", { style:{ display:"flex", gap:8 } },
+        re("button", { onClick:function() { setModalTransf(true); },
+          style:{ background:"rgba(255,255,255,0.15)", color:"#fff", border:"1px solid rgba(255,255,255,0.3)", borderRadius:12,
+            padding:"10px 14px", fontSize:13, fontWeight:700, cursor:"pointer" } }, "↔ Transf."),
+        re("button", { onClick:function() { setModalEgr(true); },
+          style:{ background:"rgba(255,255,255,0.2)", color:"#fff", border:"none", borderRadius:12,
+            padding:"10px 16px", fontSize:13, fontWeight:700, cursor:"pointer" } }, "+ Egreso")
+      )
     ),
 
     re("div", { style:{ background:"#fff", borderBottom:"1px solid #e0e0e0", display:"flex", overflowX:"auto" } },
@@ -1253,6 +1376,24 @@ export default function AdminApp() {
         ),
 
         re("div", { style:{ background:"#fff", borderRadius:16, padding:18, boxShadow:"0 1px 6px rgba(0,0,0,.08)", marginBottom:16 } },
+          re("div", { style:{ fontSize:12, fontWeight:800, color:"#888", textTransform:"uppercase", marginBottom:12 } }, "💰 Saldos actuales"),
+          re("div", { style:{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10 } },
+            re("div", { style:{ background:"#f0fdf4", borderRadius:12, padding:14, textAlign:"center" } },
+              re("div", { style:{ fontSize:11, color:"#888", marginBottom:4 } }, "💵 Efectivo"),
+              re("div", { style:{ fontSize:20, fontWeight:900, color:saldoEfectivo>=0?C.green:C.red } }, fmt(saldoEfectivo))
+            ),
+            re("div", { style:{ background:"#eff6ff", borderRadius:12, padding:14, textAlign:"center" } },
+              re("div", { style:{ fontSize:11, color:"#888", marginBottom:4 } }, "💳 T. Migue"),
+              re("div", { style:{ fontSize:20, fontWeight:900, color:saldoMigue>=0?"#3b82f6":C.red } }, fmt(saldoMigue))
+            ),
+            re("div", { style:{ background:"#fdf4ff", borderRadius:12, padding:14, textAlign:"center" } },
+              re("div", { style:{ fontSize:11, color:"#888", marginBottom:4 } }, "💳 T. Angel"),
+              re("div", { style:{ fontSize:20, fontWeight:900, color:saldoAngel>=0?C.purple:C.red } }, fmt(saldoAngel))
+            )
+          )
+        ),
+
+        re("div", { style:{ background:"#fff", borderRadius:16, padding:18, boxShadow:"0 1px 6px rgba(0,0,0,.08)", marginBottom:16 } },
           re("div", { style:{ fontSize:12, fontWeight:800, color:"#888", textTransform:"uppercase", marginBottom:12 } }, "Ventas por tienda — Hoy"),
           TIENDAS.map(function(t) {
             return re("div", { key:t.id, style:{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 0", borderBottom:"1px solid #f5f5f5" } },
@@ -1262,7 +1403,43 @@ export default function AdminApp() {
           })
         ),
 
-        re("div", { style:{ background:"#fff", borderRadius:16, padding:18, boxShadow:"0 1px 6px rgba(0,0,0,.08)" } },
+        re("div", { style:{ background:"#fff", borderRadius:16, padding:18, boxShadow:"0 1px 6px rgba(0,0,0,.08)", marginBottom:16 } },
+          re("div", { style:{ fontSize:12, fontWeight:800, color:"#888", textTransform:"uppercase", marginBottom:12 } }, "🎯 Control de Materia Prima"),
+          [
+            ["🏪 Crepisimo", gastosInsCrep, presupCrep, pctCrep, META_MP*100],
+            ["🍔 AM-Burger", gastosInsAmb, presupAmb, pctAmb, META_MP_AMB*100],
+            ["🧪 Tichi", gastosInsTichi, presupTichi, pctTichi, META_MP_TICHI*100],
+          ].map(function(row, i) {
+            var excede = row[1] > row[2];
+            var color = excede ? C.red : C.green;
+            return re("div", { key:i, style:{ marginBottom:i<2?16:0 } },
+              re("div", { style:{ display:"flex", justifyContent:"space-between", marginBottom:4 } },
+                re("span", { style:{ fontSize:13, fontWeight:700 } }, row[0]),
+                re("span", { style:{ fontSize:13, fontWeight:700, color:color } },
+                  fmt(row[1]) + " / " + fmt(row[2]) + " (" + row[3].toFixed(1) + "% de " + row[4] + "%)")
+              ),
+              re("div", { style:{ background:"#f0f0f0", borderRadius:6, height:8 } },
+                re("div", { style:{ background:color, borderRadius:6, height:8,
+                  width:Math.min(100, row[3]) + "%", transition:"width .3s" } })
+              )
+            );
+          })
+        ),
+
+        re("div", { style:{ background:"#fff", borderRadius:16, padding:18, boxShadow:"0 1px 6px rgba(0,0,0,.08)", marginBottom:16 } },
+          re("div", { style:{ fontSize:12, fontWeight:800, color:"#888", textTransform:"uppercase", marginBottom:12 } }, "💎 Valor del inventario"),
+          re("div", { style:{ fontSize:32, fontWeight:900, color:C.dark, marginBottom:12 } }, fmt(valTotal)),
+          re("div", { style:{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8 } },
+            [["🏪 Crepisimo", valCrep], ["🍔 AM-Burger", valAmb], ["🧪 Tichi", valTichi]].map(function(t, i) {
+              return re("div", { key:i, style:{ background:"#f5f5f5", borderRadius:10, padding:10, textAlign:"center" } },
+                re("div", { style:{ fontSize:11, color:"#888", marginBottom:4 } }, t[0]),
+                re("div", { style:{ fontSize:15, fontWeight:800, color:C.dark } }, fmt(t[1]))
+              );
+            })
+          )
+        ),
+
+      re("div", { style:{ background:"#fff", borderRadius:16, padding:18, boxShadow:"0 1px 6px rgba(0,0,0,.08)" } },
           re("div", { style:{ fontSize:12, fontWeight:800, color:"#888", textTransform:"uppercase", marginBottom:12 } }, "Alertas de inventario"),
           (function() {
             var alerts = [];
@@ -1311,6 +1488,11 @@ export default function AdminApp() {
       onSave:function(g) { agregarGasto(g); },
       onClose:function() { setModalEgr(false); },
       insPorTienda:insPorTienda
+    }) : null,
+
+    modalTransf ? re(ModalTransferenciaDinero, {
+      onSave:function(g) { agregarGasto(g); },
+      onClose:function() { setModalTransf(false); }
     }) : null
   );
 }
