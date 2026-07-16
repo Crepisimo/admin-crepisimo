@@ -64,6 +64,7 @@ function getRango(periodo, fechaIni, fechaFin) {
 }
 
 // ═══ COLORS ═════════════════════════════════════════════════════════
+var TC = { dark:"#2E7D32", mid:"#4CAF50", light:"#81C784", bg:"#E8F5E9", accent:"#00C853", bgL:"#F1F8E9" };
 var C = {
   dark:"#7936AD", purple:"#9b59b6", purpleL:"#f3e8ff",
   green:"#22c55e", greenL:"#f0fdf4", teal:"#14b8a6", tealL:"#f0fdfa",
@@ -1432,6 +1433,92 @@ export default function AdminApp() {
   // ventasFil/gastosFil for tabs (all time by default, tabs have own filters)
   var ventasFil = ventas;
   var gastosFil = gastos;
+
+  // Full calculations from FinanzasGlobal
+  var tv=ventasFil.reduce(function(s,v){return s+v.total;},0);
+  var tvC=ventasFil.filter(function(v){return v.tienda==="centro";}).reduce(function(s,v){return s+v.total;},0);
+  var tvSA=ventasFil.filter(function(v){return v.tienda==="sanantonio";}).reduce(function(s,v){return s+v.total;},0);
+  var tc=ventasFil.reduce(function(s,v){return s+v.comisionClip;},0);
+  var tDidiComision=ventasFil.reduce(function(s,v){return s+(v.comisionDidi||0);},0);
+  var tComisionML=ventasFil.filter(function(v){return v.metodo==="mercadolibre";}).reduce(function(s,v){return s+(v.comisionML||(v.total-(v.netoRecibido||v.total)));},0);
+  var tDidiNeto=ventasFil.filter(function(v){return v.metodo==="didi";}).reduce(function(s,v){return s+(v.netoRecibido||v.total);},0);
+  var tDidiTotal=ventasFil.filter(function(v){return v.metodo==="didi";}).reduce(function(s,v){return s+v.total;},0);
+  var tDidiPorPagar=ventasFil.filter(function(v){return v.metodo==="didi"&&v.estadoPago==="por_pagar";}).reduce(function(s,v){return s+v.total;},0);
+  var ef=ventasFil.filter(function(v){return v.metodo==="efectivo";}).reduce(function(s,v){return s+v.total;},0);
+  var tr=ventasFil.filter(function(v){return v.metodo==="transferencia";}).reduce(function(s,v){return s+v.total;},0);
+  var cl=ventasFil.filter(function(v){return v.metodo==="clip";}).reduce(function(s,v){return s+v.netoRecibido;},0);
+  var tg=gastosFil.filter(function(g){return g.desc!=="Comision Mercado Libre"&&g.tipo!=="transf_tarjeta";}).reduce(function(s,g){return s+g.monto;},0);
+  var util=tv-tg-tc-tDidiComision-tComisionML;
+  var margen=tv>0?(util/tv)*100:0;
+
+  var gastosExt=gastosFil.filter(function(g){return g.seccion==="externo";});
+  var gastosInsumo=gastosFil.filter(function(g){return g.tipo==="insumo";});
+  // AMBurger MP 42%
+  var gastosCrep=gastosInsumo.filter(function(g){return !g.insumoId||(g.insumoId.indexOf("amb_")!==0&&g.insumoId.indexOf("ti_")!==0);});
+  var gastosAmb=gastosInsumo.filter(function(g){return g.insumoId&&g.insumoId.indexOf("amb_")===0;});
+  var tvCrep=ventasFil.filter(function(v){return v.tienda!=="amburger"&&v.tienda!=="tichi";}).reduce(function(s,v){return s+v.total;},0);
+  // MP control Crepisimo (only after tvCrep is defined)
+  var totalMP=gastosCrep.reduce(function(s,g){return s+g.monto;},0);
+  var presupMP=tvCrep*META_MP;
+  var excede=totalMP>presupMP;
+  var cMP=excede?C.red:C.green;
+  var bMP=excede?C.redL:C.greenL;
+  var pctMP=tvCrep>0?(totalMP/tvCrep)*100:0;
+  var pctB=presupMP>0?Math.min(100,(totalMP/presupMP)*100):0;
+  var tvAmb=ventasFil.filter(function(v){return v.tienda==="amburger";}).reduce(function(s,v){return s+v.total;},0);
+  var totalMPAmb=gastosAmb.reduce(function(s,g){return s+g.monto;},0);
+  var presupMPAmb=tvAmb*0.42;
+  var pctMPAmb=tvAmb>0?(totalMPAmb/tvAmb)*100:0;
+  var excedeAmb=totalMPAmb>presupMPAmb;
+  var AMB_NAR="#FF6F00"; var AMB_NAR_L="#FFF3E0";
+  var colorAmb=excedeAmb?C.red:AMB_NAR;
+  var bgAmb=excedeAmb?C.redL:AMB_NAR_L;
+  var pctBarraAmb=presupMPAmb>0?Math.min(100,(totalMPAmb/presupMPAmb)*100):0;
+
+  // Tichi MP 25%
+  var gastosTichi=gastosInsumo.filter(function(g){return g.insumoId&&g.insumoId.indexOf("ti_")===0;});
+  var tvTichi=ventasFil.filter(function(v){return v.tienda==="tichi";}).reduce(function(s,v){return s+v.total;},0);
+  var totalMPTichi=gastosTichi.reduce(function(s,g){return s+g.monto;},0);
+  var presupMPTichi=tvTichi*0.25;
+  var pctMPTichi=tvTichi>0?(totalMPTichi/tvTichi)*100:0;
+  var excedeTichi=totalMPTichi>presupMPTichi;
+  var colorTichi=excedeTichi?C.red:TC.dark;
+  var bgTichi=excedeTichi?C.redL:TC.bg;
+  var pctBarraTichi=presupMPTichi>0?Math.min(100,(totalMPTichi/presupMPTichi)*100):0;
+
+  // Fix: recalculate Crepisimo MP excluding ti_ and amb_ insumos
+  gastosCrep=gastosInsumo.filter(function(g){return !g.insumoId||( g.insumoId.indexOf("amb_")!==0&&g.insumoId.indexOf("ti_")!==0);});
+
+  var tTarMigue=gastosExt.filter(function(g){return g.tipo==="tarjeta_migue";}).reduce(function(s,g){return s+g.monto;},0);
+  var tTarAngel=gastosExt.filter(function(g){return g.tipo==="tarjeta_angel";}).reduce(function(s,g){return s+g.monto;},0);
+  var tPersonal=gastosExt.filter(function(g){return g.tipo==="personal";}).reduce(function(s,g){return s+g.monto;},0);
+  var tOtroExt=gastosExt.filter(function(g){return g.tipo!=="insumo"&&g.tipo!=="tarjeta_migue"&&g.tipo!=="tarjeta_angel"&&g.tipo!=="personal"&&g.tipo!=="colaborador"&&g.tipo!=="operativo";}).reduce(function(s,g){return s+g.monto;},0);
+  var gastosCaja=gastosFil.filter(function(g){return g.seccion==="caja";});
+  var tColab=gastosCaja.filter(function(g){return g.tipo==="colaborador";}).reduce(function(s,g){return s+g.monto;},0);
+  var tOper=gastosCaja.filter(function(g){return g.tipo==="operativo";}).reduce(function(s,g){return s+g.monto;},0);
+  var tOtroCaja=gastosCaja.filter(function(g){return g.tipo==="otro";}).reduce(function(s,g){return s+g.monto;},0);
+
+  var cpxI={};
+  gastosInsumo.forEach(function(g){if(!g.insumoId)return;if(!cpxI[g.insumoId])cpxI[g.insumoId]={m:0,c:0};cpxI[g.insumoId].m+=g.monto;cpxI[g.insumoId].c+=g.cantidad;});
+  function calcV(ins){return ins.reduce(function(s,i){var cp=cpxI[i.id];if(!cp||cp.c===0)return s;return s+(cp.m/cp.c)*(i.stock||0);},0);}
+  var valC=calcV(insC),valSA=calcV(insSA),valAmb=calcV(insAmb),valTichi=calcV(insTichi);
+
+  var vpd={};ventasFil.forEach(function(v){var d=v.timestamp?v.timestamp.split("T")[0]:"";if(!d)return;if(!vpd[d])vpd[d]=0;vpd[d]+=v.total;});
+  var dias7=[];for(var i=6;i>=0;i--){var d=new Date();d.setDate(d.getDate()-i);var ds=d.toISOString().split("T")[0];dias7.push({l:d.toLocaleDateString("es-MX",{weekday:"short"}),v:Math.round(vpd[ds]||0)});}
+  var vpm={};ventasFil.forEach(function(v){if(!v.timestamp)return;var d=new Date(v.timestamp);var m=d.getFullYear()+"-"+(d.getMonth()+1<10?"0":"")+(d.getMonth()+1);if(!vpm[m])vpm[m]=0;vpm[m]+=v.total;});
+  var meses=Object.keys(vpm).sort().slice(-6).map(function(m){var p=m.split("-");var ns=["","Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];return {l:ns[parseInt(p[1])],v:Math.round(vpm[m])};});
+  var cp={};ventasFil.forEach(function(v){(v.items||[]).forEach(function(item){if(item.precio<=0)return;var n=item.nombre.split(" (")[0].split(" - ")[0];if(!cp[n])cp[n]=0;cp[n]++;});});
+  var topP=Object.keys(cp).map(function(k){return {l:k.slice(0,8),v:cp[k]};}).sort(function(a,b){return b.v-a.v;}).slice(0,8);
+
+  function Row(l,v,col){return re("div",{key:l,style:{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid #f5f5f5",fontSize:13}},re("span",{style:{color:"#555"}},l),re("span",{style:{fontWeight:700,color:col||C.dark}},fmt(v)));}
+  function Card(l,v,col,bg){return re("div",{style:{background:bg,borderRadius:12,padding:"14px",borderLeft:"4px solid "+col}},re("div",{style:{fontSize:11,color:col,fontWeight:700,textTransform:"uppercase",marginBottom:3}},l),re("div",{style:{fontSize:22,fontWeight:900,color:col}},v));}
+
+  function guardarGastoExt(){
+    if(!gv.tipo||!gv.monto||!gv.metodoPago){updG("err","Completa todos los campos");return;}
+    var tipoReal=gv.tipo==="mp_sin_inv"?"insumo":gv.tipo;
+    onGasto({seccion:"externo",tipo:tipoReal,insumoId:gv.tipo==="mp_sin_inv"?"mp_sin_especificar":null,insumoNombre:gv.tipo==="mp_sin_inv"?"Materia Prima (sin especificar)":null,cantidad:0,unidad:null,monto:parseFloat(gv.monto),metodoPago:gv.metodoPago,desc:gv.desc||"",tienda:gv.tienda||"global",timestamp:new Date().toISOString()});
+    setGv({tipo:"",desc:"",monto:"",err:"",tienda:"global",metodoPago:""});setModalExt(false);
+  }
   function Card(l,v,col,bg){return re("div",{style:{background:bg,borderRadius:12,padding:"14px",borderLeft:"4px solid "+col}},re("div",{style:{fontSize:11,color:col,fontWeight:700,textTransform:"uppercase",marginBottom:4}},l),re("div",{style:{fontSize:22,fontWeight:900,color:col}},v));}
 
   // Calcs for tabs
@@ -1510,6 +1597,92 @@ export default function AdminApp() {
   // ventasFil/gastosFil for tabs (all time by default, tabs have own filters)
   var ventasFil = ventas;
   var gastosFil = gastos;
+
+  // Full calculations from FinanzasGlobal
+  var tv=ventasFil.reduce(function(s,v){return s+v.total;},0);
+  var tvC=ventasFil.filter(function(v){return v.tienda==="centro";}).reduce(function(s,v){return s+v.total;},0);
+  var tvSA=ventasFil.filter(function(v){return v.tienda==="sanantonio";}).reduce(function(s,v){return s+v.total;},0);
+  var tc=ventasFil.reduce(function(s,v){return s+v.comisionClip;},0);
+  var tDidiComision=ventasFil.reduce(function(s,v){return s+(v.comisionDidi||0);},0);
+  var tComisionML=ventasFil.filter(function(v){return v.metodo==="mercadolibre";}).reduce(function(s,v){return s+(v.comisionML||(v.total-(v.netoRecibido||v.total)));},0);
+  var tDidiNeto=ventasFil.filter(function(v){return v.metodo==="didi";}).reduce(function(s,v){return s+(v.netoRecibido||v.total);},0);
+  var tDidiTotal=ventasFil.filter(function(v){return v.metodo==="didi";}).reduce(function(s,v){return s+v.total;},0);
+  var tDidiPorPagar=ventasFil.filter(function(v){return v.metodo==="didi"&&v.estadoPago==="por_pagar";}).reduce(function(s,v){return s+v.total;},0);
+  var ef=ventasFil.filter(function(v){return v.metodo==="efectivo";}).reduce(function(s,v){return s+v.total;},0);
+  var tr=ventasFil.filter(function(v){return v.metodo==="transferencia";}).reduce(function(s,v){return s+v.total;},0);
+  var cl=ventasFil.filter(function(v){return v.metodo==="clip";}).reduce(function(s,v){return s+v.netoRecibido;},0);
+  var tg=gastosFil.filter(function(g){return g.desc!=="Comision Mercado Libre"&&g.tipo!=="transf_tarjeta";}).reduce(function(s,g){return s+g.monto;},0);
+  var util=tv-tg-tc-tDidiComision-tComisionML;
+  var margen=tv>0?(util/tv)*100:0;
+
+  var gastosExt=gastosFil.filter(function(g){return g.seccion==="externo";});
+  var gastosInsumo=gastosFil.filter(function(g){return g.tipo==="insumo";});
+  // AMBurger MP 42%
+  var gastosCrep=gastosInsumo.filter(function(g){return !g.insumoId||(g.insumoId.indexOf("amb_")!==0&&g.insumoId.indexOf("ti_")!==0);});
+  var gastosAmb=gastosInsumo.filter(function(g){return g.insumoId&&g.insumoId.indexOf("amb_")===0;});
+  var tvCrep=ventasFil.filter(function(v){return v.tienda!=="amburger"&&v.tienda!=="tichi";}).reduce(function(s,v){return s+v.total;},0);
+  // MP control Crepisimo (only after tvCrep is defined)
+  var totalMP=gastosCrep.reduce(function(s,g){return s+g.monto;},0);
+  var presupMP=tvCrep*META_MP;
+  var excede=totalMP>presupMP;
+  var cMP=excede?C.red:C.green;
+  var bMP=excede?C.redL:C.greenL;
+  var pctMP=tvCrep>0?(totalMP/tvCrep)*100:0;
+  var pctB=presupMP>0?Math.min(100,(totalMP/presupMP)*100):0;
+  var tvAmb=ventasFil.filter(function(v){return v.tienda==="amburger";}).reduce(function(s,v){return s+v.total;},0);
+  var totalMPAmb=gastosAmb.reduce(function(s,g){return s+g.monto;},0);
+  var presupMPAmb=tvAmb*0.42;
+  var pctMPAmb=tvAmb>0?(totalMPAmb/tvAmb)*100:0;
+  var excedeAmb=totalMPAmb>presupMPAmb;
+  var AMB_NAR="#FF6F00"; var AMB_NAR_L="#FFF3E0";
+  var colorAmb=excedeAmb?C.red:AMB_NAR;
+  var bgAmb=excedeAmb?C.redL:AMB_NAR_L;
+  var pctBarraAmb=presupMPAmb>0?Math.min(100,(totalMPAmb/presupMPAmb)*100):0;
+
+  // Tichi MP 25%
+  var gastosTichi=gastosInsumo.filter(function(g){return g.insumoId&&g.insumoId.indexOf("ti_")===0;});
+  var tvTichi=ventasFil.filter(function(v){return v.tienda==="tichi";}).reduce(function(s,v){return s+v.total;},0);
+  var totalMPTichi=gastosTichi.reduce(function(s,g){return s+g.monto;},0);
+  var presupMPTichi=tvTichi*0.25;
+  var pctMPTichi=tvTichi>0?(totalMPTichi/tvTichi)*100:0;
+  var excedeTichi=totalMPTichi>presupMPTichi;
+  var colorTichi=excedeTichi?C.red:TC.dark;
+  var bgTichi=excedeTichi?C.redL:TC.bg;
+  var pctBarraTichi=presupMPTichi>0?Math.min(100,(totalMPTichi/presupMPTichi)*100):0;
+
+  // Fix: recalculate Crepisimo MP excluding ti_ and amb_ insumos
+  gastosCrep=gastosInsumo.filter(function(g){return !g.insumoId||( g.insumoId.indexOf("amb_")!==0&&g.insumoId.indexOf("ti_")!==0);});
+
+  var tTarMigue=gastosExt.filter(function(g){return g.tipo==="tarjeta_migue";}).reduce(function(s,g){return s+g.monto;},0);
+  var tTarAngel=gastosExt.filter(function(g){return g.tipo==="tarjeta_angel";}).reduce(function(s,g){return s+g.monto;},0);
+  var tPersonal=gastosExt.filter(function(g){return g.tipo==="personal";}).reduce(function(s,g){return s+g.monto;},0);
+  var tOtroExt=gastosExt.filter(function(g){return g.tipo!=="insumo"&&g.tipo!=="tarjeta_migue"&&g.tipo!=="tarjeta_angel"&&g.tipo!=="personal"&&g.tipo!=="colaborador"&&g.tipo!=="operativo";}).reduce(function(s,g){return s+g.monto;},0);
+  var gastosCaja=gastosFil.filter(function(g){return g.seccion==="caja";});
+  var tColab=gastosCaja.filter(function(g){return g.tipo==="colaborador";}).reduce(function(s,g){return s+g.monto;},0);
+  var tOper=gastosCaja.filter(function(g){return g.tipo==="operativo";}).reduce(function(s,g){return s+g.monto;},0);
+  var tOtroCaja=gastosCaja.filter(function(g){return g.tipo==="otro";}).reduce(function(s,g){return s+g.monto;},0);
+
+  var cpxI={};
+  gastosInsumo.forEach(function(g){if(!g.insumoId)return;if(!cpxI[g.insumoId])cpxI[g.insumoId]={m:0,c:0};cpxI[g.insumoId].m+=g.monto;cpxI[g.insumoId].c+=g.cantidad;});
+  function calcV(ins){return ins.reduce(function(s,i){var cp=cpxI[i.id];if(!cp||cp.c===0)return s;return s+(cp.m/cp.c)*(i.stock||0);},0);}
+  var valC=calcV(insC),valSA=calcV(insSA),valAmb=calcV(insAmb),valTichi=calcV(insTichi);
+
+  var vpd={};ventasFil.forEach(function(v){var d=v.timestamp?v.timestamp.split("T")[0]:"";if(!d)return;if(!vpd[d])vpd[d]=0;vpd[d]+=v.total;});
+  var dias7=[];for(var i=6;i>=0;i--){var d=new Date();d.setDate(d.getDate()-i);var ds=d.toISOString().split("T")[0];dias7.push({l:d.toLocaleDateString("es-MX",{weekday:"short"}),v:Math.round(vpd[ds]||0)});}
+  var vpm={};ventasFil.forEach(function(v){if(!v.timestamp)return;var d=new Date(v.timestamp);var m=d.getFullYear()+"-"+(d.getMonth()+1<10?"0":"")+(d.getMonth()+1);if(!vpm[m])vpm[m]=0;vpm[m]+=v.total;});
+  var meses=Object.keys(vpm).sort().slice(-6).map(function(m){var p=m.split("-");var ns=["","Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];return {l:ns[parseInt(p[1])],v:Math.round(vpm[m])};});
+  var cp={};ventasFil.forEach(function(v){(v.items||[]).forEach(function(item){if(item.precio<=0)return;var n=item.nombre.split(" (")[0].split(" - ")[0];if(!cp[n])cp[n]=0;cp[n]++;});});
+  var topP=Object.keys(cp).map(function(k){return {l:k.slice(0,8),v:cp[k]};}).sort(function(a,b){return b.v-a.v;}).slice(0,8);
+
+  function Row(l,v,col){return re("div",{key:l,style:{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid #f5f5f5",fontSize:13}},re("span",{style:{color:"#555"}},l),re("span",{style:{fontWeight:700,color:col||C.dark}},fmt(v)));}
+  function Card(l,v,col,bg){return re("div",{style:{background:bg,borderRadius:12,padding:"14px",borderLeft:"4px solid "+col}},re("div",{style:{fontSize:11,color:col,fontWeight:700,textTransform:"uppercase",marginBottom:3}},l),re("div",{style:{fontSize:22,fontWeight:900,color:col}},v));}
+
+  function guardarGastoExt(){
+    if(!gv.tipo||!gv.monto||!gv.metodoPago){updG("err","Completa todos los campos");return;}
+    var tipoReal=gv.tipo==="mp_sin_inv"?"insumo":gv.tipo;
+    onGasto({seccion:"externo",tipo:tipoReal,insumoId:gv.tipo==="mp_sin_inv"?"mp_sin_especificar":null,insumoNombre:gv.tipo==="mp_sin_inv"?"Materia Prima (sin especificar)":null,cantidad:0,unidad:null,monto:parseFloat(gv.monto),metodoPago:gv.metodoPago,desc:gv.desc||"",tienda:gv.tienda||"global",timestamp:new Date().toISOString()});
+    setGv({tipo:"",desc:"",monto:"",err:"",tienda:"global",metodoPago:""});setModalExt(false);
+  }
   function Card(l,v,col,bg){return re("div",{style:{background:bg,borderRadius:12,padding:"14px",borderLeft:"4px solid "+col}},re("div",{style:{fontSize:11,color:col,fontWeight:700,textTransform:"uppercase",marginBottom:4}},l),re("div",{style:{fontSize:22,fontWeight:900,color:col}},v));}
 
   // Calcs for tabs
