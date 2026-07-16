@@ -674,6 +674,82 @@ function ModalEgreso(props) {
 }
 
 
+// ═══ TRANSFERENCIA DE INVENTARIO ════════════════════════════════════
+function ModalTransferenciaInventario(props) {
+  var tiendaOrigen = props.tiendaOrigen;
+  var insOrigenArr = props.insOrigen || [];
+  var onTransferir = props.onTransferir;
+  var onClose = props.onClose;
+
+  var tiendaDestino = tiendaOrigen === "centro" ? "sanantonio" : "centro";
+  var nombreOrigen = tiendaOrigen === "centro" ? "Centro" : "S.Antonio";
+  var nombreDestino = tiendaOrigen === "centro" ? "S.Antonio" : "Centro";
+
+  var st1 = useState(""); var busq = st1[0]; var setBusq = st1[1];
+  var st2 = useState(""); var insId = st2[0]; var setInsId = st2[1];
+  var st3 = useState(""); var cant = st3[0]; var setCant = st3[1];
+  var st4 = useState(""); var err = st4[0]; var setErr = st4[1];
+
+  var insFil = insOrigenArr.filter(function(i) {
+    return !busq || i.nombre.toLowerCase().indexOf(busq.toLowerCase()) >= 0;
+  });
+  var insSel = insOrigenArr.find(function(i) { return i.id === insId; }) || null;
+
+  async function transferir() {
+    if (!insId) { setErr("Selecciona un insumo"); return; }
+    if (!cant || parseFloat(cant) <= 0) { setErr("Ingresa la cantidad"); return; }
+    var cantidad = parseFloat(cant);
+    if (cantidad > (insSel.stock || 0)) { setErr("No hay suficiente stock (" + (insSel.stock||0) + " " + insSel.unidad + ")"); return; }
+    // Resta en origen
+    await updateStockDelta(tiendaOrigen, [{ id:insId, delta:-cantidad }]);
+    // Suma en destino
+    await updateStockDelta(tiendaDestino, [{ id:insId, delta:cantidad }]);
+    onTransferir(tiendaOrigen, tiendaDestino, insId, cantidad);
+    onClose();
+  }
+
+  return re("div", { style:OV }, re("div", { style:MD },
+    re("div", { style:{ fontSize:18, fontWeight:900, color:C.dark, marginBottom:4 } }, "🔄 Transferir inventario"),
+    re("div", { style:{ fontSize:13, color:"#888", marginBottom:16 } },
+      nombreOrigen + " → " + nombreDestino),
+
+    re("div", { style:{ marginBottom:14 } },
+      re("div", { style:LB }, "Insumo"),
+      re("input", { type:"text", placeholder:"Buscar insumo...", value:busq,
+        onChange:function(e) { setBusq(e.target.value); setInsId(""); },
+        style:IP }),
+      busq && insFil.length > 0 ? re("div",
+        { style:{ border:"1.5px solid #e0e0e0", borderRadius:10, maxHeight:160, overflowY:"auto", marginTop:4 } },
+        insFil.slice(0, 15).map(function(ins) {
+          return re("div", { key:ins.id,
+            onClick:function() { setInsId(ins.id); setBusq(ins.nombre); setErr(""); },
+            style:{ padding:"8px 12px", cursor:"pointer", borderBottom:"1px solid #f5f5f5",
+              background:insId===ins.id?"#f3e8ff":"#fff", fontSize:13 } },
+            ins.nombre + " — stock: " + (Math.round((ins.stock||0)*1000)/1000) + " " + ins.unidad
+          );
+        })
+      ) : null
+    ),
+
+    insSel ? re("div", { style:{ marginBottom:14 } },
+      re("div", { style:LB }, "Cantidad a transferir (" + insSel.unidad + ")"),
+      re("div", { style:{ fontSize:12, color:"#888", marginBottom:6 } },
+        "Stock disponible en " + nombreOrigen + ": " + (Math.round((insSel.stock||0)*1000)/1000) + " " + insSel.unidad),
+      re("input", { type:"number", placeholder:"0", value:cant,
+        onChange:function(e) { setCant(e.target.value); setErr(""); },
+        style:Object.assign({}, IP, { fontSize:20, fontWeight:700 }) })
+    ) : null,
+
+    err ? re("div", { style:{ color:C.red, fontSize:13, marginBottom:10, fontWeight:600 } }, err) : null,
+
+    re("div", { style:{ display:"flex", gap:10 } },
+      re("button", { type:"button", onClick:onClose, style:BS("#f0f0f0","#666") }, "Cancelar"),
+      re("button", { type:"button", onClick:transferir, style:BS(C.dark,"#fff",2) },
+        "Transferir a " + nombreDestino)
+    )
+  ));
+}
+
 // ═══ INVENTARIO ADMIN ═══════════════════════════════════════════════
 function InventarioAdmin(props) {
   var datos = props.datos || {};
@@ -686,6 +762,7 @@ function InventarioAdmin(props) {
   var st6 = useState("sumar"); var editMode = st6[0]; var setEditMode = st6[1];
   var st7 = useState(""); var editPrecio = st7[0]; var setEditPrecio = st7[1];
   var st8 = useState(""); var editCant = st8[0]; var setEditCant = st8[1];
+  var st9 = useState(false); var modalTransfInv = st9[0]; var setModalTransfInv = st9[1];
 
   var ins = datos[tienda] || [];
   var agotados = ins.filter(function(i) { return (i.stock||0) === 0; });
@@ -700,15 +777,22 @@ function InventarioAdmin(props) {
   });
 
   return re("div", { style:{ paddingBottom:40 } },
-    re("div", { style:{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap" } },
-      TIENDAS.map(function(t) {
-        var sel = tienda === t.id;
-        return re("button", { key:t.id, onClick:function() { setTienda(t.id); setFil(""); setCat("todos"); },
+    re("div", { style:{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 } },
+      re("div", { style:{ display:"flex", gap:6, flexWrap:"wrap" } },
+        TIENDAS.map(function(t) {
+          var sel = tienda === t.id;
+          return re("button", { key:t.id, onClick:function() { setTienda(t.id); setFil(""); setCat("todos"); },
           style:{ padding:"8px 14px", border:"2px solid "+(sel?t.color:"#e0e0e0"), borderRadius:20,
             cursor:"pointer", fontWeight:sel?800:500, background:sel?t.color:"#fff",
             color:sel?"#fff":"#555", fontSize:12 } }, t.emoji+" "+t.nombre
-        );
-      })
+          );
+        })
+      ),
+      (tienda==="centro"||tienda==="sanantonio") ? re("button", {
+        onClick:function() { setModalTransfInv(true); },
+        style:{ padding:"8px 14px", background:C.dark, color:"#fff", border:"none",
+          borderRadius:12, fontSize:12, fontWeight:700, cursor:"pointer", whiteSpace:"nowrap" }
+      }, "🔄 Transferir") : null
     ),
     re("div", { style:{ display:"flex", gap:8, marginBottom:14 } },
       re("div", { style:{ flex:1, background:agotados.length>0?"#ffebee":"#f0fdf4", borderRadius:12, padding:"10px 14px", textAlign:"center" } },
@@ -759,6 +843,20 @@ function InventarioAdmin(props) {
         );
       })
     ),
+    modalTransfInv ? re(ModalTransferenciaInventario, {
+      tiendaOrigen: tienda,
+      insOrigen: ins,
+      onTransferir: function(origen, destino, insId2, cantidad) {
+        if (onUpdate) {
+          var insOrig = ins.find(function(i){return i.id===insId2;});
+          if (insOrig) onUpdate(origen, insId2, Math.max(0,(insOrig.stock||0)-cantidad), insOrig.costoPorU);
+          // Note: destino update will show on next reload
+        }
+        setModalTransfInv(false);
+      },
+      onClose: function() { setModalTransfInv(false); }
+    }) : null,
+
     editIns ? re("div", { style:OV }, re("div", { style:MD },
       re("div", { style:{ fontSize:17, fontWeight:900, color:C.dark, marginBottom:4 } }, editIns.nombre),
       re("div", { style:{ fontSize:13, color:"#888", marginBottom:14 } },
@@ -985,7 +1083,8 @@ function EgresosAdmin(props) {
   var tTarM = gFil.filter(function(g) { return g.tipo === "tarjeta_migue"; }).reduce(function(s,g) { return s+g.monto; }, 0);
   var tTarA = gFil.filter(function(g) { return g.tipo === "tarjeta_angel"; }).reduce(function(s,g) { return s+g.monto; }, 0);
   var tOtro = gFil.filter(function(g) { return g.tipo === "otro"; }).reduce(function(s,g) { return s+g.monto; }, 0);
-  var tTotal = tMP+tColab+tOper+tPers+tTarM+tTarA+tOtro;
+  var tComisionML=ventasFil.filter(function(v){return v.metodo==="mercadolibre";}).reduce(function(s,v){return s+(v.comisionML||(v.total-(v.netoRecibido||v.total)));},0);
+  var tTotal = tMP+tColab+tOper+tPers+tTarM+tTarA+tOtro+tComisionML;
 
   function getDesc(g) {
     var t = g.tienda ? " [" + g.tienda.charAt(0).toUpperCase() + g.tienda.slice(1) + "]" : "";
@@ -1029,7 +1128,7 @@ function EgresosAdmin(props) {
     re("div", { style:{ background:"#fff", borderRadius:14, padding:16, marginBottom:14, boxShadow:"0 1px 6px rgba(0,0,0,.08)" } },
       re("div", { style:SC }, "Desglose de egresos"),
       [["📦 Materia Prima",tMP],["👤 Colaboradores",tColab],["⚙️ Operativo",tOper],
-       ["👫 Personal A&M",tPers],["💳 T.Migue",tTarM],["💳 T.Angel",tTarA],["💸 Otros",tOtro]].map(function(row,i) {
+       ["👫 Personal A&M",tPers],["💳 T.Migue",tTarM],["💳 T.Angel",tTarA],["💸 Otros",tOtro],["🛒 Comisión ML",tComisionML]].map(function(row,i) {
         if (row[1] === 0) return null;
         return re("div", { key:i, style:{ display:"flex", justifyContent:"space-between", padding:"8px 0", borderBottom:"1px solid #f5f5f5" } },
           re("span", { style:{ fontSize:13, color:"#555" } }, row[0]),
@@ -1087,6 +1186,26 @@ function EgresosAdmin(props) {
   );
 }
 
+
+function BarChart(props){
+  var datos=props.datos,titulo=props.titulo,colorBar=props.color||C.dark;
+  if(!datos||datos.length===0)return re("div",{style:{textAlign:"center",color:"#bbb",padding:30,fontSize:13}},"Sin datos para mostrar");
+  var maxVal=Math.max.apply(null,datos.map(function(d){return d.v;}));
+  if(maxVal===0)return re("div",{style:{textAlign:"center",color:"#bbb",padding:30,fontSize:13}},"Sin datos");
+  return re("div",null,
+    titulo?re("div",{style:{fontSize:12,fontWeight:700,color:"#888",textTransform:"uppercase",marginBottom:12}},titulo):null,
+    re("div",{style:{display:"flex",alignItems:"flex-end",gap:4,height:120,paddingBottom:24,position:"relative"}},
+      datos.map(function(d,i){
+        var pct=(d.v/maxVal)*100;
+        return re("div",{key:i,style:{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}},
+          d.v>0?re("div",{style:{fontSize:9,color:colorBar,fontWeight:700,textAlign:"center"}},d.v>=1000?(d.v/1000).toFixed(1)+"k":d.v):null,
+          re("div",{style:{width:"100%",background:colorBar,borderRadius:"3px 3px 0 0",height:pct+"%",minHeight:d.v>0?4:0,opacity:.85}}),
+          re("div",{style:{fontSize:9,color:"#888",textAlign:"center",marginTop:2,wordBreak:"break-word"}},d.l)
+        );
+      })
+    )
+  );
+}
 
 // ═══ TRANSFERENCIA DE DINERO ════════════════════════════════════════
 function ModalTransferenciaDinero(props) {
@@ -1176,6 +1295,9 @@ export default function AdminApp() {
   var st8 = useState({ centro:[], sanantonio:[], amburger:[], tichi:[] });
   var inv = st8[0]; var setInv = st8[1];
   var st9 = useState(false); var modalTransf = st9[0]; var setModalTransf = st9[1];
+  var st10 = useState("dia"); var graf = st10[0]; var setGraf = st10[1];
+  var GRAFS=[{id:"dias",lbl:"Por dia"},{id:"meses",lbl:"Por mes"},{id:"productos",lbl:"Mas vendidos"}];
+  var st11 = useState("todas"); var filtroTiendaProd = st11[0]; var setFiltroTiendaProd = st11[1];
 
   function mkIns(base) { return base.map(function(i) { return Object.assign({},i,{stock:0}); }); }
 
@@ -1307,7 +1429,161 @@ export default function AdminApp() {
   var valTichi = calcValor(inv.tichi);
   var valTotal = valCrep + valAmb + valTichi;
 
+  // ventasFil/gastosFil for tabs (all time by default, tabs have own filters)
+  var ventasFil = ventas;
+  var gastosFil = gastos;
+  function Card(l,v,col,bg){return re("div",{style:{background:bg,borderRadius:12,padding:"14px",borderLeft:"4px solid "+col}},re("div",{style:{fontSize:11,color:col,fontWeight:700,textTransform:"uppercase",marginBottom:4}},l),re("div",{style:{fontSize:22,fontWeight:900,color:col}},v));}
+
+  // Calcs for tabs
+  var gastosInsumo=gastosFil.filter(function(g){return g.tipo==="insumo";});
+  // AMBurger MP 42%
+  var gastosCrep=gastosInsumo.filter(function(g){return !g.insumoId||(g.insumoId.indexOf("amb_")!==0&&g.insumoId.indexOf("ti_")!==0);});
+  var gastosAmb=gastosInsumo.filter(function(g){return g.insumoId&&g.insumoId.indexOf("amb_")===0;});
+  var tvCrep=ventasFil.filter(function(v){return v.tienda!=="amburger"&&v.tienda!=="tichi";}).reduce(function(s,v){return s+v.total;},0);
+  // MP control Crepisimo (only after tvCrep is defined)
+  var totalMP=gastosCrep.reduce(function(s,g){return s+g.monto;},0);
+  var presupMP=tvCrep*META_MP;
+  var excede=totalMP>presupMP;
+  var cMP=excede?C.red:C.green;
+  var bMP=excede?C.redL:C.greenL;
+  var pctMP=tvCrep>0?(totalMP/tvCrep)*100:0;
+  var pctB=presupMP>0?Math.min(100,(totalMP/presupMP)*100):0;
+  var tvAmb=ventasFil.filter(function(v){return v.tienda==="amburger";}).reduce(function(s,v){return s+v.total;},0);
+  var totalMPAmb=gastosAmb.reduce(function(s,g){return s+g.monto;},0);
+  var presupMPAmb=tvAmb*0.42;
+  var pctMPAmb=tvAmb>0?(totalMPAmb/tvAmb)*100:0;
+  var excedeAmb=totalMPAmb>presupMPAmb;
+  var AMB_NAR="#FF6F00"; var AMB_NAR_L="#FFF3E0";
+  var colorAmb=excedeAmb?C.red:AMB_NAR;
+  var bgAmb=excedeAmb?C.redL:AMB_NAR_L;
+  var pctBarraAmb=presupMPAmb>0?Math.min(100,(totalMPAmb/presupMPAmb)*100):0;
+
+  // Tichi MP 25%
+  var gastosTichi=gastosInsumo.filter(function(g){return g.insumoId&&g.insumoId.indexOf("ti_")===0;});
+  var tvTichi=ventasFil.filter(function(v){return v.tienda==="tichi";}).reduce(function(s,v){return s+v.total;},0);
+  var totalMPTichi=gastosTichi.reduce(function(s,g){return s+g.monto;},0);
+  var presupMPTichi=tvTichi*0.25;
+  var pctMPTichi=tvTichi>0?(totalMPTichi/tvTichi)*100:0;
+  var excedeTichi=totalMPTichi>presupMPTichi;
+  var colorTichi=excedeTichi?C.red:TC.dark;
+  var bgTichi=excedeTichi?C.redL:TC.bg;
+  var pctBarraTichi=presupMPTichi>0?Math.min(100,(totalMPTichi/presupMPTichi)*100):0;
+
+  // Fix: recalculate Crepisimo MP excluding ti_ and amb_ insumos
+  gastosCrep=gastosInsumo.filter(function(g){return !g.insumoId||( g.insumoId.indexOf("amb_")!==0&&g.insumoId.indexOf("ti_")!==0);});
+
+  var tTarMigue=gastosExt.filter(function(g){return g.tipo==="tarjeta_migue";}).reduce(function(s,g){return s+g.monto;},0);
+  var tTarAngel=gastosExt.filter(function(g){return g.tipo==="tarjeta_angel";}).reduce(function(s,g){return s+g.monto;},0);
+  var tPersonal=gastosExt.filter(function(g){return g.tipo==="personal";}).reduce(function(s,g){return s+g.monto;},0);
+  var tOtroExt=gastosExt.filter(function(g){return g.tipo!=="insumo"&&g.tipo!=="tarjeta_migue"&&g.tipo!=="tarjeta_angel"&&g.tipo!=="personal"&&g.tipo!=="colaborador"&&g.tipo!=="operativo";}).reduce(function(s,g){return s+g.monto;},0);
+  var gastosCaja=gastosFil.filter(function(g){return g.seccion==="caja";});
+  var tColab=gastosCaja.filter(function(g){return g.tipo==="colaborador";}).reduce(function(s,g){return s+g.monto;},0);
+  var tOper=gastosCaja.filter(function(g){return g.tipo==="operativo";}).reduce(function(s,g){return s+g.monto;},0);
+  var tOtroCaja=gastosCaja.filter(function(g){return g.tipo==="otro";}).reduce(function(s,g){return s+g.monto;},0);
+
+  var cpxI={};
+  gastosInsumo.forEach(function(g){if(!g.insumoId)return;if(!cpxI[g.insumoId])cpxI[g.insumoId]={m:0,c:0};cpxI[g.insumoId].m+=g.monto;cpxI[g.insumoId].c+=g.cantidad;});
+  function calcV(ins){return ins.reduce(function(s,i){var cp=cpxI[i.id];if(!cp||cp.c===0)return s;return s+(cp.m/cp.c)*(i.stock||0);},0);}
+  var valC=calcV(insC),valSA=calcV(insSA),valAmb=calcV(insAmb),valTichi=calcV(insTichi);
+
+  var vpd={};ventasFil.forEach(function(v){var d=v.timestamp?v.timestamp.split("T")[0]:"";if(!d)return;if(!vpd[d])vpd[d]=0;vpd[d]+=v.total;});
+  var dias7=[];for(var i=6;i>=0;i--){var d=new Date();d.setDate(d.getDate()-i);var ds=d.toISOString().split("T")[0];dias7.push({l:d.toLocaleDateString("es-MX",{weekday:"short"}),v:Math.round(vpd[ds]||0)});}
+  var vpm={};ventasFil.forEach(function(v){if(!v.timestamp)return;var d=new Date(v.timestamp);var m=d.getFullYear()+"-"+(d.getMonth()+1<10?"0":"")+(d.getMonth()+1);if(!vpm[m])vpm[m]=0;vpm[m]+=v.total;});
+  var meses=Object.keys(vpm).sort().slice(-6).map(function(m){var p=m.split("-");var ns=["","Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];return {l:ns[parseInt(p[1])],v:Math.round(vpm[m])};});
+  var cp={};ventasFil.forEach(function(v){(v.items||[]).forEach(function(item){if(item.precio<=0)return;var n=item.nombre.split(" (")[0].split(" - ")[0];if(!cp[n])cp[n]=0;cp[n]++;});});
+  var topP=Object.keys(cp).map(function(k){return {l:k.slice(0,8),v:cp[k]};}).sort(function(a,b){return b.v-a.v;}).slice(0,8);
+
+  function Row(l,v,col){return re("div",{key:l,style:{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid #f5f5f5",fontSize:13}},re("span",{style:{color:"#555"}},l),re("span",{style:{fontWeight:700,color:col||C.dark}},fmt(v)));}
+  function Card(l,v,col,bg){return re("div",{style:{background:bg,borderRadius:12,padding:"14px",borderLeft:"4px solid "+col}},re("div",{style:{fontSize:11,color:col,fontWeight:700,textTransform:"uppercase",marginBottom:3}},l),re("div",{style:{fontSize:22,fontWeight:900,color:col}},v));}
+
+  function guardarGastoExt(){
+    if(!gv.tipo||!gv.monto||!gv.metodoPago){updG("err","Completa todos los campos");return;}
+    var tipoReal=gv.tipo==="mp_sin_inv"?"insumo":gv.tipo;
+    onGasto({seccion:"externo",tipo:tipoReal,insumoId:gv.tipo==="mp_sin_inv"?"mp_sin_especificar":null,insumoNombre:gv.tipo==="mp_sin_inv"?"Materia Prima (sin especificar)":null,cantidad:0,unidad:null,monto:parseFloat(gv.monto),metodoPago:gv.metodoPago,desc:gv.desc||"",tienda:gv.tienda||"global",timestamp:new Date().toISOString()});
+    setGv({tipo:"",desc:"",monto:"",err:"",tienda:"global",metodoPago:""});setModalExt(false);
+  }
+
+  // GRAFS
+  var GRAFS=[{id:"dias",lbl:"Por dia"},{id:"meses",lbl:"Por mes"},{id:"productos",lbl:"Mas vendidos"}];
+
   // Saldos por método de pago (acumulado todo el tiempo)
+  // ventasFil/gastosFil for tabs (all time by default, tabs have own filters)
+  var ventasFil = ventas;
+  var gastosFil = gastos;
+  function Card(l,v,col,bg){return re("div",{style:{background:bg,borderRadius:12,padding:"14px",borderLeft:"4px solid "+col}},re("div",{style:{fontSize:11,color:col,fontWeight:700,textTransform:"uppercase",marginBottom:4}},l),re("div",{style:{fontSize:22,fontWeight:900,color:col}},v));}
+
+  // Calcs for tabs
+  var gastosInsumo=gastosFil.filter(function(g){return g.tipo==="insumo";});
+  // AMBurger MP 42%
+  var gastosCrep=gastosInsumo.filter(function(g){return !g.insumoId||(g.insumoId.indexOf("amb_")!==0&&g.insumoId.indexOf("ti_")!==0);});
+  var gastosAmb=gastosInsumo.filter(function(g){return g.insumoId&&g.insumoId.indexOf("amb_")===0;});
+  var tvCrep=ventasFil.filter(function(v){return v.tienda!=="amburger"&&v.tienda!=="tichi";}).reduce(function(s,v){return s+v.total;},0);
+  // MP control Crepisimo (only after tvCrep is defined)
+  var totalMP=gastosCrep.reduce(function(s,g){return s+g.monto;},0);
+  var presupMP=tvCrep*META_MP;
+  var excede=totalMP>presupMP;
+  var cMP=excede?C.red:C.green;
+  var bMP=excede?C.redL:C.greenL;
+  var pctMP=tvCrep>0?(totalMP/tvCrep)*100:0;
+  var pctB=presupMP>0?Math.min(100,(totalMP/presupMP)*100):0;
+  var tvAmb=ventasFil.filter(function(v){return v.tienda==="amburger";}).reduce(function(s,v){return s+v.total;},0);
+  var totalMPAmb=gastosAmb.reduce(function(s,g){return s+g.monto;},0);
+  var presupMPAmb=tvAmb*0.42;
+  var pctMPAmb=tvAmb>0?(totalMPAmb/tvAmb)*100:0;
+  var excedeAmb=totalMPAmb>presupMPAmb;
+  var AMB_NAR="#FF6F00"; var AMB_NAR_L="#FFF3E0";
+  var colorAmb=excedeAmb?C.red:AMB_NAR;
+  var bgAmb=excedeAmb?C.redL:AMB_NAR_L;
+  var pctBarraAmb=presupMPAmb>0?Math.min(100,(totalMPAmb/presupMPAmb)*100):0;
+
+  // Tichi MP 25%
+  var gastosTichi=gastosInsumo.filter(function(g){return g.insumoId&&g.insumoId.indexOf("ti_")===0;});
+  var tvTichi=ventasFil.filter(function(v){return v.tienda==="tichi";}).reduce(function(s,v){return s+v.total;},0);
+  var totalMPTichi=gastosTichi.reduce(function(s,g){return s+g.monto;},0);
+  var presupMPTichi=tvTichi*0.25;
+  var pctMPTichi=tvTichi>0?(totalMPTichi/tvTichi)*100:0;
+  var excedeTichi=totalMPTichi>presupMPTichi;
+  var colorTichi=excedeTichi?C.red:TC.dark;
+  var bgTichi=excedeTichi?C.redL:TC.bg;
+  var pctBarraTichi=presupMPTichi>0?Math.min(100,(totalMPTichi/presupMPTichi)*100):0;
+
+  // Fix: recalculate Crepisimo MP excluding ti_ and amb_ insumos
+  gastosCrep=gastosInsumo.filter(function(g){return !g.insumoId||( g.insumoId.indexOf("amb_")!==0&&g.insumoId.indexOf("ti_")!==0);});
+
+  var tTarMigue=gastosExt.filter(function(g){return g.tipo==="tarjeta_migue";}).reduce(function(s,g){return s+g.monto;},0);
+  var tTarAngel=gastosExt.filter(function(g){return g.tipo==="tarjeta_angel";}).reduce(function(s,g){return s+g.monto;},0);
+  var tPersonal=gastosExt.filter(function(g){return g.tipo==="personal";}).reduce(function(s,g){return s+g.monto;},0);
+  var tOtroExt=gastosExt.filter(function(g){return g.tipo!=="insumo"&&g.tipo!=="tarjeta_migue"&&g.tipo!=="tarjeta_angel"&&g.tipo!=="personal"&&g.tipo!=="colaborador"&&g.tipo!=="operativo";}).reduce(function(s,g){return s+g.monto;},0);
+  var gastosCaja=gastosFil.filter(function(g){return g.seccion==="caja";});
+  var tColab=gastosCaja.filter(function(g){return g.tipo==="colaborador";}).reduce(function(s,g){return s+g.monto;},0);
+  var tOper=gastosCaja.filter(function(g){return g.tipo==="operativo";}).reduce(function(s,g){return s+g.monto;},0);
+  var tOtroCaja=gastosCaja.filter(function(g){return g.tipo==="otro";}).reduce(function(s,g){return s+g.monto;},0);
+
+  var cpxI={};
+  gastosInsumo.forEach(function(g){if(!g.insumoId)return;if(!cpxI[g.insumoId])cpxI[g.insumoId]={m:0,c:0};cpxI[g.insumoId].m+=g.monto;cpxI[g.insumoId].c+=g.cantidad;});
+  function calcV(ins){return ins.reduce(function(s,i){var cp=cpxI[i.id];if(!cp||cp.c===0)return s;return s+(cp.m/cp.c)*(i.stock||0);},0);}
+  var valC=calcV(insC),valSA=calcV(insSA),valAmb=calcV(insAmb),valTichi=calcV(insTichi);
+
+  var vpd={};ventasFil.forEach(function(v){var d=v.timestamp?v.timestamp.split("T")[0]:"";if(!d)return;if(!vpd[d])vpd[d]=0;vpd[d]+=v.total;});
+  var dias7=[];for(var i=6;i>=0;i--){var d=new Date();d.setDate(d.getDate()-i);var ds=d.toISOString().split("T")[0];dias7.push({l:d.toLocaleDateString("es-MX",{weekday:"short"}),v:Math.round(vpd[ds]||0)});}
+  var vpm={};ventasFil.forEach(function(v){if(!v.timestamp)return;var d=new Date(v.timestamp);var m=d.getFullYear()+"-"+(d.getMonth()+1<10?"0":"")+(d.getMonth()+1);if(!vpm[m])vpm[m]=0;vpm[m]+=v.total;});
+  var meses=Object.keys(vpm).sort().slice(-6).map(function(m){var p=m.split("-");var ns=["","Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];return {l:ns[parseInt(p[1])],v:Math.round(vpm[m])};});
+  var cp={};ventasFil.forEach(function(v){(v.items||[]).forEach(function(item){if(item.precio<=0)return;var n=item.nombre.split(" (")[0].split(" - ")[0];if(!cp[n])cp[n]=0;cp[n]++;});});
+  var topP=Object.keys(cp).map(function(k){return {l:k.slice(0,8),v:cp[k]};}).sort(function(a,b){return b.v-a.v;}).slice(0,8);
+
+  function Row(l,v,col){return re("div",{key:l,style:{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid #f5f5f5",fontSize:13}},re("span",{style:{color:"#555"}},l),re("span",{style:{fontWeight:700,color:col||C.dark}},fmt(v)));}
+  function Card(l,v,col,bg){return re("div",{style:{background:bg,borderRadius:12,padding:"14px",borderLeft:"4px solid "+col}},re("div",{style:{fontSize:11,color:col,fontWeight:700,textTransform:"uppercase",marginBottom:3}},l),re("div",{style:{fontSize:22,fontWeight:900,color:col}},v));}
+
+  function guardarGastoExt(){
+    if(!gv.tipo||!gv.monto||!gv.metodoPago){updG("err","Completa todos los campos");return;}
+    var tipoReal=gv.tipo==="mp_sin_inv"?"insumo":gv.tipo;
+    onGasto({seccion:"externo",tipo:tipoReal,insumoId:gv.tipo==="mp_sin_inv"?"mp_sin_especificar":null,insumoNombre:gv.tipo==="mp_sin_inv"?"Materia Prima (sin especificar)":null,cantidad:0,unidad:null,monto:parseFloat(gv.monto),metodoPago:gv.metodoPago,desc:gv.desc||"",tienda:gv.tienda||"global",timestamp:new Date().toISOString()});
+    setGv({tipo:"",desc:"",monto:"",err:"",tienda:"global",metodoPago:""});setModalExt(false);
+  }
+
+  // GRAFS
+  var GRAFS=[{id:"dias",lbl:"Por dia"},{id:"meses",lbl:"Por mes"},{id:"productos",lbl:"Mas vendidos"}];
+
   // Saldos por método de pago (igual que POS FinanzasGlobal)
   var ingEfectivo=ventas.filter(function(v){return v.metodo==="efectivo";}).reduce(function(s,v){return s+v.total;},0);
   var egreEfectivo=gastos.filter(function(g){return g.tipo!=="transf_tarjeta"&&(g.metodoPago==="efectivo"||(!g.metodoPago&&g.seccion==="caja"&&g.tipo!=="operativo")||g.tipo==="colaborador");}).reduce(function(s,g){return s+g.monto;},0);
@@ -1330,7 +1606,7 @@ export default function AdminApp() {
   if (error) return re("div", { style:{ padding:24, color:C.red, textAlign:"center", fontSize:16 } }, error);
 
   var PURP = "#7c3aed";
-  var TABS = [["resumen","📊 Resumen"],["ventas","💰 Ventas"],["inventario","📦 Inventario"],["egresos","💸 Egresos"]];
+  var TABS = [["resumen","📊 Resumen"],["semana","📅 Semanal"],["productos","🏆 Productos"],["graficas","📈 Gráficas"],["ventas","💰 Ventas"],["inventario","📦 Inventario"],["egresos","💸 Egresos"]];
 
   return re("div", { style:{ minHeight:"100vh", background:"#f5f5f7", fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" } },
 
@@ -1362,6 +1638,12 @@ export default function AdminApp() {
     re("div", { style:{ padding:16, maxWidth:800, margin:"0 auto" } },
 
       tab === "resumen" ? re("div", null,
+        re("div", { style:{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14 } },
+          Card("Ventas totales", fmt(ventasFil.reduce(function(s,v){return s+v.total;},0)), C.green, C.greenL),
+          Card("Egresos", fmt(gastosFil.filter(function(g){return g.tipo!=="transf_tarjeta";}).reduce(function(s,g){return s+g.monto;},0)), C.red, C.redL),
+          Card("Utilidad", fmt(ventasFil.reduce(function(s,v){return s+v.total;},0) - gastosFil.filter(function(g){return g.tipo!=="transf_tarjeta";}).reduce(function(s,g){return s+g.monto;},0)), C.dark, C.purpleL),
+          Card("Margen", (ventasFil.reduce(function(s,v){return s+v.total;},0)>0?(((ventasFil.reduce(function(s,v){return s+v.total;},0)-gastosFil.filter(function(g){return g.tipo!=="transf_tarjeta";}).reduce(function(s,g){return s+g.monto;},0))/ventasFil.reduce(function(s,v){return s+v.total;},0))*100).toFixed(1)+"%":"0%"), C.teal, C.tealL)
+        ),
         re("div", { style:{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:16 } },
           re("div", { style:{ background:"#fff", borderRadius:16, padding:18, boxShadow:"0 1px 6px rgba(0,0,0,.08)" } },
             re("div", { style:{ fontSize:11, fontWeight:700, color:"#888", textTransform:"uppercase", marginBottom:4 } }, "Ventas hoy"),
@@ -1479,6 +1761,180 @@ export default function AdminApp() {
         re(VentasAdmin, { ventas:ventas, tiendaId:tiendaSel })
       ) : null,
 
+      tab === "graficas" ? re("div", { style:{ background:"#fff", borderRadius:14, padding:16, boxShadow:"0 1px 6px rgba(0,0,0,.08)" } },
+        re("div", { style:{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap" } },
+          GRAFS.map(function(g) {
+            var sel = graf === g.id;
+            return re("button", { key:g.id, onClick:function() { setGraf(g.id); },
+              style:{ padding:"7px 12px", border:"2px solid "+(sel?C.dark:"#e0e0e0"), borderRadius:20,
+                cursor:"pointer", fontWeight:sel?800:500, background:sel?C.dark:"#fff",
+                color:sel?"#fff":"#555", fontSize:12 } }, g.lbl);
+          })
+        ),
+        re(BarChart, {
+          datos: Object.values((function() {
+            var rr = {};
+            ventasFil.forEach(function(vv) {
+              var dd = new Date(vv.timestamp);
+              var kk = graf==="dias" ? dd.getDate()+"/"+(dd.getMonth()+1)
+                : graf==="meses" ? ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"][dd.getMonth()]
+                : ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"][dd.getDay()];
+              if (!rr[kk]) rr[kk] = { l:kk, v:0 };
+              rr[kk].v += vv.total;
+            });
+            return rr;
+          })()),
+          titulo: "Ventas", color: C.dark
+        })
+      ) : null,
+
+      tab === "semana" ? re("div", null, tab==="semana"?re("div",null,
+      re("div",{style:{background:"#fff",borderRadius:14,padding:16,marginBottom:14,boxShadow:"0 1px 6px rgba(0,0,0,.09)"}},
+        // Week selector
+        re("div",{style:{fontSize:14,fontWeight:800,color:C.dark,marginBottom:12}},"Resumen Visual"),
+        re("div",{style:{fontSize:12,color:"#aaa",marginBottom:14}},
+          "Periodo: "+(periodo==="hoy"?"Hoy":periodo==="semana"?"Esta semana":periodo==="mes"?"Este mes":periodo==="custom"&&fechaIni&&fechaFin?fechaIni+" al "+fechaFin:"Todo el historial")
+        ),
+
+        // Main numbers
+        re("div",{style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:16}},
+          re("div",{style:{background:"#E8F5E9",borderRadius:12,padding:"14px 10px",textAlign:"center"}},
+            re("div",{style:{fontSize:11,color:"#388E3C",fontWeight:700,marginBottom:4}},"💰 INGRESOS"),
+            re("div",{style:{fontSize:18,fontWeight:900,color:"#2E7D32"}},fmt(tv))
+          ),
+          re("div",{style:{background:"#FFEBEE",borderRadius:12,padding:"14px 10px",textAlign:"center"}},
+            re("div",{style:{fontSize:11,color:C.red,fontWeight:700,marginBottom:4}},"💸 EGRESOS"),
+            re("div",{style:{fontSize:18,fontWeight:900,color:C.red}},fmt(tg+tc+tDidiComision))
+          ),
+          re("div",{style:{background:(tv-tg-tc-tDidiComision)>=0?"#E3F2FD":"#FFEBEE",borderRadius:12,padding:"14px 10px",textAlign:"center"}},
+            re("div",{style:{fontSize:11,color:"#1565C0",fontWeight:700,marginBottom:4}},"📈 UTILIDAD"),
+            re("div",{style:{fontSize:18,fontWeight:900,color:(tv-tg-tc-tDidiComision)>=0?"#1565C0":C.red}},fmt(tv-tg-tc-tDidiComision))
+          )
+        ),
+
+        // Por tienda
+        re("div",{style:{marginBottom:16}},
+          re("div",{style:{fontSize:12,fontWeight:800,color:"#555",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}},"Por tienda"),
+          [
+            ["🏪","Crepisimo Centro",ventasFil.filter(function(v){return v.tienda==="centro";}).reduce(function(s,v){return s+v.total;},0)],
+            ["🏬","Crepisimo S.A.",ventasFil.filter(function(v){return v.tienda==="sanantonio";}).reduce(function(s,v){return s+v.total;},0)],
+            ["🍔","AM-Burger",tvAmb],
+            ["🧋","Tichi",tvTichi]
+          ].map(function(x){
+            var pct=tv>0?Math.round(x[2]/tv*100):0;
+            return re("div",{key:x[1],style:{marginBottom:8}},
+              re("div",{style:{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:3}},
+                re("span",null,x[0]+" "+x[1]),
+                re("span",{style:{fontWeight:700}},fmt(x[2])+" ("+pct+"%)")
+              ),
+              re("div",{style:{height:8,background:"#f0f0f0",borderRadius:4,overflow:"hidden"}},
+                re("div",{style:{height:"100%",width:pct+"%",background:C.dark,borderRadius:4}})
+              )
+            );
+          })
+        ),
+
+        // Por metodo de pago / saldos
+        re("div",{style:{marginBottom:16}},
+          re("div",{style:{fontSize:12,fontWeight:800,color:"#555",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}},"Por origen de dinero"),
+          re("div",{style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}},
+            [["💵","Efectivo",saldoEfectivo,"#388E3C"],["💳","T. Migue",saldoMigue,"#1565C0"],["💳","T. Angel",saldoAngel,"#6A1B9A"]].map(function(x){
+              return re("div",{key:x[1],style:{background:"#f8f9fa",borderRadius:10,padding:"12px 8px",textAlign:"center"}},
+                re("div",{style:{fontSize:11,color:x[3],fontWeight:700,marginBottom:3}},x[0]+" "+x[1]),
+                re("div",{style:{fontSize:15,fontWeight:900,color:x[2]>=0?x[3]:C.red}},fmt(x[2]))
+              );
+            })
+          )
+        ),
+
+        // Top 5 productos
+        re("div",null,
+          re("div",{style:{fontSize:12,fontWeight:800,color:"#555",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}},"Top 5 productos"),
+          re("div",null,
+            (function(){
+              var conteo={};
+              ventasFil.forEach(function(v){
+                (v.items||[]).forEach(function(item){
+                  if(item.precio<=0||item.esDescuento||item.esEmpleado)return;
+                  var n=item.nombre;
+                  if(!conteo[n])conteo[n]={nombre:n,qty:0,total:0};
+                  conteo[n].qty++;
+                  conteo[n].total+=item.precio;
+                });
+              });
+              var sorted=Object.values(conteo).sort(function(a,b){return b.qty-a.qty;}).slice(0,5);
+              var maxQty=sorted.length>0?sorted[0].qty:1;
+              return sorted.map(function(p,i){
+                return re("div",{key:p.nombre,style:{marginBottom:8}},
+                  re("div",{style:{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:3}},
+                    re("span",null,(i+1)+". "+p.nombre),
+                    re("span",{style:{fontWeight:700,color:"#555"}},p.qty+" veces | "+fmt(p.total))
+                  ),
+                  re("div",{style:{height:6,background:"#f0f0f0",borderRadius:3,overflow:"hidden"}},
+                    re("div",{style:{height:"100%",width:Math.round(p.qty/maxQty*100)+"%",background:C.amber,borderRadius:3}})
+                  )
+                );
+              });
+            })()
+          )
+        )
+      )
+    ):null,) : null,
+      tab === "productos" ? re("div", null, tab==="productos"?re("div",null,
+      re("div",{style:{background:"#fff",borderRadius:14,padding:14,marginBottom:14,boxShadow:"0 1px 6px rgba(0,0,0,.09)"}},
+        re("div",{style:{fontSize:13,fontWeight:800,color:C.dark,marginBottom:10}},"Ventas por Producto"),
+        re("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},
+          [["todas","Todas"],["centro","Centro"],["sanantonio","S.Antonio"],["amburger","AM-Burger"],["tichi","Tichi"]].map(function(x){
+            var sel=filtroTiendaProd===x[0];
+            return re("button",{key:x[0],onClick:function(){setFiltroTiendaProd(x[0]);},
+              style:{padding:"7px 12px",border:"2px solid "+(sel?C.dark:"#e0e0e0"),borderRadius:9,
+                cursor:"pointer",fontWeight:sel?800:500,background:sel?C.dark:"#fff",
+                color:sel?"#fff":"#666",fontSize:11}},x[1]);
+          })
+        )
+      ),
+      re("div",{style:{background:"#fff",borderRadius:14,padding:16,boxShadow:"0 1px 6px rgba(0,0,0,.09)"}},
+        re("div",null,(function(){
+          var vFil=ventasFil.filter(function(v){return filtroTiendaProd==="todas"||v.tienda===filtroTiendaProd;});
+          var conteo={};
+          vFil.forEach(function(v){
+            (v.items||[]).forEach(function(item){
+              if(item.precio<0||item.esDescuento)return;
+              var n=(item.nombre||"").replace(" (empleado)","").replace(" (promo)","").trim();
+              if(!conteo[n])conteo[n]={nombre:n,qty:0,total:0,tiendas:{}};
+              conteo[n].qty++;
+              conteo[n].total+=item.precio||0;
+              var t=v.tienda||"";
+              conteo[n].tiendas[t]=(conteo[n].tiendas[t]||0)+1;
+            });
+          });
+          var sorted=Object.values(conteo).sort(function(a,b){return b.qty-a.qty;});
+          if(sorted.length===0)return re("div",{style:{textAlign:"center",color:"#bbb",padding:30}},"Sin ventas");
+          return re("div",null,
+            re("div",{style:{display:"grid",gridTemplateColumns:"1fr 60px 80px",gap:"6px 10px",marginBottom:8,paddingBottom:6,borderBottom:"2px solid #f0f0f0"}},
+              re("div",{style:{fontSize:10,fontWeight:800,color:"#aaa",textTransform:"uppercase"}},"Producto"),
+              re("div",{style:{fontSize:10,fontWeight:800,color:"#aaa",textTransform:"uppercase",textAlign:"right"}},"Pzas"),
+              re("div",{style:{fontSize:10,fontWeight:800,color:"#aaa",textTransform:"uppercase",textAlign:"right"}},"Total")
+            ),
+            sorted.map(function(p){
+              return re("div",{key:p.nombre,style:{display:"grid",gridTemplateColumns:"1fr 60px 80px",gap:"4px 10px",paddingBottom:8,marginBottom:8,borderBottom:"1px solid #f8f8f8",alignItems:"start"}},
+                re("div",null,
+                  re("div",{style:{fontSize:13,fontWeight:600,color:C.dark}},p.nombre),
+                  filtroTiendaProd==="todas"?re("div",{style:{fontSize:10,color:"#aaa",marginTop:1}},
+                    Object.entries(p.tiendas).map(function(e){
+                      var lb=e[0]==="centro"?"C":e[0]==="sanantonio"?"SA":e[0]==="amburger"?"AMB":"T";
+                      return lb+":"+e[1];
+                    }).join(" ")
+                  ):null
+                ),
+                re("div",{style:{fontSize:13,fontWeight:700,color:"#555",textAlign:"right"}},p.qty),
+                re("div",{style:{fontSize:13,fontWeight:700,color:C.green,textAlign:"right"}},fmt(p.total))
+              );
+            })
+          );
+        })())
+      )
+    ):null,) : null,
       tab === "inventario" ? re(InventarioAdmin, { datos:inv, onUpdate:handleUpdate }) : null,
 
       tab === "egresos" ? re(EgresosAdmin, { gastos:gastos, onEditar:editarGasto, onEliminar:eliminarGasto }) : null
