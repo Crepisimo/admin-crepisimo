@@ -1501,7 +1501,7 @@ export default function AdminApp() {
   var cpxI={};
   gastosInsumo.forEach(function(g){if(!g.insumoId)return;if(!cpxI[g.insumoId])cpxI[g.insumoId]={m:0,c:0};cpxI[g.insumoId].m+=g.monto;cpxI[g.insumoId].c+=g.cantidad;});
   function calcV(ins){return ins.reduce(function(s,i){var cp=cpxI[i.id];if(!cp||cp.c===0)return s;return s+(cp.m/cp.c)*(i.stock||0);},0);}
-  var valC=calcV(insC),valSA=calcV(insSA),valAmb=calcV(insAmb),valTichi=calcV(insTichi);
+  var valC=calcV(inv.centro),valSA=calcV(inv.sanantonio),valAmb=calcV(inv.amburger),valTichi=calcV(inv.tichi);
 
   var vpd={};ventasFil.forEach(function(v){var d=v.timestamp?v.timestamp.split("T")[0]:"";if(!d)return;if(!vpd[d])vpd[d]=0;vpd[d]+=v.total;});
   var dias7=[];for(var i=6;i>=0;i--){var d=new Date();d.setDate(d.getDate()-i);var ds=d.toISOString().split("T")[0];dias7.push({l:d.toLocaleDateString("es-MX",{weekday:"short"}),v:Math.round(vpd[ds]||0)});}
@@ -1571,7 +1571,7 @@ export default function AdminApp() {
   var cpxI={};
   gastosInsumo.forEach(function(g){if(!g.insumoId)return;if(!cpxI[g.insumoId])cpxI[g.insumoId]={m:0,c:0};cpxI[g.insumoId].m+=g.monto;cpxI[g.insumoId].c+=g.cantidad;});
   function calcV(ins){return ins.reduce(function(s,i){var cp=cpxI[i.id];if(!cp||cp.c===0)return s;return s+(cp.m/cp.c)*(i.stock||0);},0);}
-  var valC=calcV(insC),valSA=calcV(insSA),valAmb=calcV(insAmb),valTichi=calcV(insTichi);
+  var valC=calcV(inv.centro),valSA=calcV(inv.sanantonio),valAmb=calcV(inv.amburger),valTichi=calcV(inv.tichi);
 
   var vpd={};ventasFil.forEach(function(v){var d=v.timestamp?v.timestamp.split("T")[0]:"";if(!d)return;if(!vpd[d])vpd[d]=0;vpd[d]+=v.total;});
   var dias7=[];for(var i=6;i>=0;i--){var d=new Date();d.setDate(d.getDate()-i);var ds=d.toISOString().split("T")[0];dias7.push({l:d.toLocaleDateString("es-MX",{weekday:"short"}),v:Math.round(vpd[ds]||0)});}
@@ -1665,7 +1665,7 @@ export default function AdminApp() {
   var cpxI={};
   gastosInsumo.forEach(function(g){if(!g.insumoId)return;if(!cpxI[g.insumoId])cpxI[g.insumoId]={m:0,c:0};cpxI[g.insumoId].m+=g.monto;cpxI[g.insumoId].c+=g.cantidad;});
   function calcV(ins){return ins.reduce(function(s,i){var cp=cpxI[i.id];if(!cp||cp.c===0)return s;return s+(cp.m/cp.c)*(i.stock||0);},0);}
-  var valC=calcV(insC),valSA=calcV(insSA),valAmb=calcV(insAmb),valTichi=calcV(insTichi);
+  var valC=calcV(inv.centro),valSA=calcV(inv.sanantonio),valAmb=calcV(inv.amburger),valTichi=calcV(inv.tichi);
 
   var vpd={};ventasFil.forEach(function(v){var d=v.timestamp?v.timestamp.split("T")[0]:"";if(!d)return;if(!vpd[d])vpd[d]=0;vpd[d]+=v.total;});
   var dias7=[];for(var i=6;i>=0;i--){var d=new Date();d.setDate(d.getDate()-i);var ds=d.toISOString().split("T")[0];dias7.push({l:d.toLocaleDateString("es-MX",{weekday:"short"}),v:Math.round(vpd[ds]||0)});}
@@ -1735,7 +1735,7 @@ export default function AdminApp() {
   var cpxI={};
   gastosInsumo.forEach(function(g){if(!g.insumoId)return;if(!cpxI[g.insumoId])cpxI[g.insumoId]={m:0,c:0};cpxI[g.insumoId].m+=g.monto;cpxI[g.insumoId].c+=g.cantidad;});
   function calcV(ins){return ins.reduce(function(s,i){var cp=cpxI[i.id];if(!cp||cp.c===0)return s;return s+(cp.m/cp.c)*(i.stock||0);},0);}
-  var valC=calcV(insC),valSA=calcV(insSA),valAmb=calcV(insAmb),valTichi=calcV(insTichi);
+  var valC=calcV(inv.centro),valSA=calcV(inv.sanantonio),valAmb=calcV(inv.amburger),valTichi=calcV(inv.tichi);
 
   var vpd={};ventasFil.forEach(function(v){var d=v.timestamp?v.timestamp.split("T")[0]:"";if(!d)return;if(!vpd[d])vpd[d]=0;vpd[d]+=v.total;});
   var dias7=[];for(var i=6;i>=0;i--){var d=new Date();d.setDate(d.getDate()-i);var ds=d.toISOString().split("T")[0];dias7.push({l:d.toLocaleDateString("es-MX",{weekday:"short"}),v:Math.round(vpd[ds]||0)});}
