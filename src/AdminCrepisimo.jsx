@@ -519,7 +519,7 @@ function ResumenTab(props) {
   var h = (function(){var d=new Date();return d.getFullYear()+"-"+(d.getMonth()+1<10?"0":"")+(d.getMonth()+1)+"-"+(d.getDate()<10?"0":"")+d.getDate();})();
   function esHoy(ts){if(!ts)return false;var d=new Date(ts);return d.getFullYear()+"-"+(d.getMonth()+1<10?"0":"")+(d.getMonth()+1)+"-"+(d.getDate()<10?"0":"")+d.getDate()===h;}
 
-  var vHoy = ventas.filter(function(v){return esHoy(v.timestamp);});
+  var vHoy = ventas.filter(function(v){return esHoy(v.timestamp)&&v.estadoPago!=="reembolsado";});
   var gHoy = gastos.filter(function(g){return esHoy(g.timestamp);});
   var tvHoy = vHoy.reduce(function(s,v){return s+v.total;},0);
   var tgHoy = gHoy.filter(function(g){return g.tipo!=="transf_tarjeta";}).reduce(function(s,g){return s+g.monto;},0);
@@ -545,7 +545,7 @@ function ResumenTab(props) {
   var sA  = ingA  - egA  - trAM + trMA + trEfA;
 
   // Totales
-  var tvAll = ventas.reduce(function(s,v){return s+v.total;},0);
+  var tvAll = ventas.filter(function(v){return v.estadoPago!=="reembolsado";}).reduce(function(s,v){return s+v.total;},0);
   var tgAll = gastos.filter(function(g){return g.tipo!=="transf_tarjeta";}).reduce(function(s,g){return s+g.monto;},0);
   var util  = tvAll - tgAll;
   var margen = tvAll > 0 ? (util/tvAll*100).toFixed(1)+"%" : "0%";
@@ -1227,8 +1227,9 @@ function VentasAdmin(props) {
     return (tiendaId === "todas" || v.tienda === tiendaId) && enRango(v.timestamp, rango.ini, rango.fin);
   });
 
-  var tv = vFil.reduce(function(s, v) { return s + v.total; }, 0);
-  var nv = vFil.length;
+  var vFilOk = vFil.filter(function(v){return v.estadoPago!=="reembolsado";});
+  var tv = vFilOk.reduce(function(s, v) { return s + v.total; }, 0);
+  var nv = vFilOk.length;
 
   var prods = {};
   vFil.forEach(function(v) {
