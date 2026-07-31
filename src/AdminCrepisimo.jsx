@@ -40,7 +40,18 @@ function getRango(periodo,fechaIni,fechaFin) {
   return{ini:h,fin:h};
 }
 
-var C = { dark:"#7936AD",purple:"#9b59b6",purpleL:"#f3e8ff",green:"#22c55e",greenL:"#f0fdf4",teal:"#14b8a6",tealL:"#f0fdfa",amber:"#f59e0b",amberL:"#fffbeb",red:"#ef4444",redL:"#fff5f5",blue:"#3b82f6",blueL:"#eff6ff" };
+var C={
+  dark:"#7936AD",
+  green:"#E172B3",greenL:"#FFD9EE",
+  teal:"#52ABD8",tealL:"#E1F8FF",
+  orange:"#D34633",
+  red:"#D34633",redL:"#FFDCDC",
+  purple:"#7936AD",purpleL:"#EFE3FF",
+  indigo:"#52ABD8",indigoL:"#C3E9FC",
+  amber:"#EFC42E",amberL:"#FFF2CF",
+  white:"#ffffff",slate:"#2E4057",
+  blue:"#52ABD8",blueL:"#E1F8FF",
+};
 var OV = {position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16};
 var MD = {background:"#fff",borderRadius:18,padding:24,width:"100%",maxWidth:480,maxHeight:"90vh",overflowY:"auto"};
 var LB = {fontSize:11,fontWeight:700,color:"#888",textTransform:"uppercase",letterSpacing:0.5,marginBottom:6};
@@ -1654,8 +1665,8 @@ export default function AdminApp() {
   useEffect(function(){
     (async function(){
       try {
-        var rawV=await sbGet("ventas","select=*&order=timestamp.desc&limit=10000")||[];
-        var rawG=await sbGet("gastos","select=*&order=timestamp.desc&limit=10000")||[];
+        var rawV=await sbGet("ventas","select=*&order=timestamp.desc&limit=50000")||[];
+        var rawG=await sbGet("gastos","select=*&order=timestamp.desc&limit=50000")||[];
         var rawI=await sbGet("inventario","select=*")||[];
         var ventasApp=rawV.map(function(v){return{timestamp:v.timestamp,tienda:v.tienda,total:v.total||0,metodo:v.metodo||"efectivo",comisionClip:v.comision_clip||0,comisionDidi:v.comision_didi||0,items:v.items||[],estadoPago:v.estado_pago||"pagado",netoRecibido:v.neto_recibido||null};});
         var gastosApp=rawG.map(function(g){return{timestamp:g.timestamp,tienda:g.tienda,seccion:g.seccion,tipo:g.tipo,monto:g.monto||0,desc:g.desc_gasto||"",insumoId:g.insumo_id||"",insumoNombre:g.insumo_nombre||"",cantidad:g.cantidad||0,unidad:g.unidad||"",metodoPago:g.metodo_pago||""};});
