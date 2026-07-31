@@ -15,6 +15,20 @@ function sbGet(t, q) { return sbFetch(t + (q?"?"+q:""), {method:"GET"}); }
 function sbPost(t, b) { return sbFetch(t+"?Prefer=return=minimal", {method:"POST", body:JSON.stringify(b)}); }
 function sbPatch(t, q, b) { return sbFetch(t+"?"+q, {method:"PATCH", body:JSON.stringify(b)}); }
 function sbDelete(t, q) { return sbFetch(t+"?"+q, {method:"DELETE"}); }
+async function fetchAll(table, baseQuery) {
+  var allRows = [];
+  var pageSize = 1000;
+  var offset = 0;
+  while (true) {
+    var q = (baseQuery ? baseQuery + "&" : "") + "limit=" + pageSize + "&offset=" + offset;
+    var rows = await sbGet(table, q);
+    if (!rows || rows.length === 0) break;
+    allRows = allRows.concat(rows);
+    if (rows.length < pageSize) break;
+    offset += pageSize;
+  }
+  return allRows;
+}
 async function updateStockDelta(tienda, deltas) {
   for (var i=0; i<deltas.length; i++) {
     var d=deltas[i]; if(!d.id||d.delta===0) continue;
@@ -1665,8 +1679,8 @@ export default function AdminApp() {
   useEffect(function(){
     (async function(){
       try {
-        var rawV=await sbGet("ventas","select=*&order=timestamp.desc&limit=50000")||[];
-        var rawG=await sbGet("gastos","select=*&order=timestamp.desc&limit=50000")||[];
+        var rawV=await fetchAll("ventas","select=*&order=timestamp.desc")||[];
+        var rawG=await fetchAll("gastos","select=*&order=timestamp.desc")||[];
         var rawI=await sbGet("inventario","select=*")||[];
         var ventasApp=rawV.map(function(v){return{timestamp:v.timestamp,tienda:v.tienda,total:v.total||0,metodo:v.metodo||"efectivo",comisionClip:v.comision_clip||0,comisionDidi:v.comision_didi||0,items:v.items||[],estadoPago:v.estado_pago||"pagado",netoRecibido:v.neto_recibido||null};});
         var gastosApp=rawG.map(function(g){return{timestamp:g.timestamp,tienda:g.tienda,seccion:g.seccion,tipo:g.tipo,monto:g.monto||0,desc:g.desc_gasto||"",insumoId:g.insumo_id||"",insumoNombre:g.insumo_nombre||"",cantidad:g.cantidad||0,unidad:g.unidad||"",metodoPago:g.metodo_pago||""};});
