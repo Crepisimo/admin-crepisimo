@@ -1287,6 +1287,15 @@ function VentasAdmin(props) {
 
   return re("div", null,
     re("div", { style:{ background:"#fff", borderRadius:14, padding:14, marginBottom:14, boxShadow:"0 1px 6px rgba(0,0,0,.08)" } },
+      re("div", { style:{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:10 } },
+        [{id:"todas",nombre:"Todas",emoji:"🌐"}].concat(TIENDAS).map(function(t) {
+          var sel = tiendaId === t.id;
+          return re("button", { key:t.id, onClick:function() { if(props.onTiendaChange) props.onTiendaChange(t.id); },
+            style:{ padding:"6px 12px", border:"2px solid "+(sel?C.dark:"#e0e0e0"), borderRadius:20,
+              cursor:"pointer", fontWeight:sel?800:500, background:sel?C.dark:"#fff",
+              color:sel?"#fff":"#555", fontSize:12 } }, t.emoji+" "+t.nombre);
+        })
+      ),
       re("div", { style:{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:periodo==="custom"?10:0 } },
         [["hoy","Hoy"],["semana","Semana"],["mes","Este mes"],["custom","Personalizado"]].map(function(p) {
           var sel = periodo === p[0];
