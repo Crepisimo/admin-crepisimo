@@ -5,14 +5,20 @@ var SB_URL = "https://ctsijalwjuzmingdxozi.supabase.co";
 var SB_KEY = "sb_publishable_LJZo3cGXe7hhzajWSogATw_A8vGfRO7";
 
 async function sbFetch(path, opts) {
-  var r = await fetch(SB_URL + "/rest/v1/" + path, Object.assign({
-    headers: { "apikey": SB_KEY, "Authorization": "Bearer " + SB_KEY, "Content-Type": "application/json" }
-  }, opts));
-  if (!r.ok) { var t=await r.text(); throw new Error(t); }
-  return r.status === 204 ? null : r.json();
+  var extraHeaders = (opts && opts.headers) || {};
+  var mergedOpts = Object.assign({}, opts, {
+    headers: Object.assign({"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY,"Content-Type":"application/json"}, extraHeaders)
+  });
+  var r = await fetch(SB_URL + "/rest/v1/" + path, mergedOpts);
+  if (!r.ok) { var t = await r.text(); throw new Error(t); }
+  if (r.status === 204 || r.headers.get("content-length") === "0") return null;
+  return r.text().then(function(t) {
+    if (!t || t.trim() === "") return null;
+    try { return JSON.parse(t); } catch(e) { return null; }
+  });
 }
 function sbGet(t, q) { return sbFetch(t + (q?"?"+q:""), {method:"GET"}); }
-function sbPost(t, b) { return sbFetch(t+"?Prefer=return=minimal", {method:"POST", body:JSON.stringify(b)}); }
+function sbPost(t, b) { return sbFetch(t, {method:"POST", headers:{"Prefer":"return=minimal"}, body:JSON.stringify(b)}); }
 function sbPatch(t, q, b) { return sbFetch(t+"?"+q, {method:"PATCH", body:JSON.stringify(b)}); }
 function sbDelete(t, q) { return sbFetch(t+"?"+q, {method:"DELETE"}); }
 async function fetchAll(table, baseQuery) {
