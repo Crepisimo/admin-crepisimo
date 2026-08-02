@@ -665,23 +665,35 @@ function ResumenTab(props) {
     re("div",{style:{background:"#fff",borderRadius:14,padding:16,marginBottom:14,boxShadow:"0 1px 6px rgba(0,0,0,.08)"}},
       re("div",{style:{fontSize:12,fontWeight:800,color:"#888",textTransform:"uppercase",marginBottom:10}},"Saldos actuales"),
       re("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}},
-        re("div",{style:{background:"#f0fdf4",borderRadius:10,padding:10,textAlign:"center"}},
+        re("div",{style:{background:"#f0fdf4",borderRadius:10,padding:10,textAlign:"center",cursor:"pointer"},onClick:function(){setEditSaldo(editSaldo==="efectivo"?null:"efectivo");setEditSaldoVal(String(Math.round(sEf)));}},
           re("div",{style:{fontSize:11,color:"#888",marginBottom:4}},"💵 Efectivo"),
-          re("div",{style:{fontSize:16,fontWeight:900,color:sEf>=0?"#22c55e":"#ef4444"}},fmt(sEf))
+          editSaldo==="efectivo"
+            ?re("div",{style:{display:"flex",gap:4,alignItems:"center",justifyContent:"center"}},
+                re("input",{type:"number",value:editSaldoVal,onChange:function(e){setEditSaldoVal(e.target.value);},onClick:function(e){e.stopPropagation();},style:{width:70,fontSize:13,padding:"3px 4px",border:"2px solid #22c55e",borderRadius:6,textAlign:"center"},autoFocus:true}),
+                re("button",{onClick:function(e){e.stopPropagation();guardarAjuste("efectivo");},style:{background:"#22c55e",color:"#fff",border:"none",borderRadius:6,padding:"3px 8px",fontWeight:700,cursor:"pointer"}},"✓"),
+                re("button",{onClick:function(e){e.stopPropagation();setEditSaldo(null);},style:{background:"#ef4444",color:"#fff",border:"none",borderRadius:6,padding:"3px 6px",cursor:"pointer"}},"✕")
+              )
+            :re("div",{style:{fontSize:16,fontWeight:900,color:sEf>=0?"#22c55e":"#ef4444"}},fmt(sEf)+" ✏️")
         ),
-        re("div",{style:{background:"#eff6ff",borderRadius:10,padding:10,textAlign:"center"}},
+        re("div",{style:{background:"#eff6ff",borderRadius:10,padding:10,textAlign:"center",cursor:"pointer"},onClick:function(){setEditSaldo(editSaldo==="tarjeta_migue"?null:"tarjeta_migue");setEditSaldoVal(String(Math.round(sM)));}},
           re("div",{style:{fontSize:11,color:"#888",marginBottom:4}},"💳 T. Migue"),
-          re("div",{style:{fontSize:16,fontWeight:900,color:sM>=0?"#3b82f6":"#ef4444"}},fmt(sM))
+          editSaldo==="tarjeta_migue"
+            ?re("div",{style:{display:"flex",gap:4,alignItems:"center",justifyContent:"center"}},
+                re("input",{type:"number",value:editSaldoVal,onChange:function(e){setEditSaldoVal(e.target.value);},onClick:function(e){e.stopPropagation();},style:{width:70,fontSize:13,padding:"3px 4px",border:"2px solid #3b82f6",borderRadius:6,textAlign:"center"},autoFocus:true}),
+                re("button",{onClick:function(e){e.stopPropagation();guardarAjuste("tarjeta_migue");},style:{background:"#3b82f6",color:"#fff",border:"none",borderRadius:6,padding:"3px 8px",fontWeight:700,cursor:"pointer"}},"✓"),
+                re("button",{onClick:function(e){e.stopPropagation();setEditSaldo(null);},style:{background:"#ef4444",color:"#fff",border:"none",borderRadius:6,padding:"3px 6px",cursor:"pointer"}},"✕")
+              )
+            :re("div",{style:{fontSize:16,fontWeight:900,color:sM>=0?"#3b82f6":"#ef4444"}},fmt(sM)+" ✏️")
         ),
-        re("div",{style:{background:"#fdf4ff",borderRadius:10,padding:10,textAlign:"center"}},
+        re("div",{style:{background:"#fdf4ff",borderRadius:10,padding:10,textAlign:"center",cursor:"pointer"},onClick:function(){setEditSaldo(editSaldo==="tarjeta_angel"?null:"tarjeta_angel");setEditSaldoVal(String(Math.round(sA)));}},
           re("div",{style:{fontSize:11,color:"#888",marginBottom:4}},"💜 T. Angel"),
           editSaldo==="tarjeta_angel"
-            ? re("div",{style:{display:"flex",gap:4,alignItems:"center"}},
-                re("input",{type:"number",value:editSaldoVal,onChange:function(e){setEditSaldoVal(e.target.value);},style:{width:"80px",fontSize:13,padding:"3px 6px",border:"2px solid #9b59b6",borderRadius:6,textAlign:"center"},autoFocus:true,onClick:function(e){e.stopPropagation();}}),
-                re("button",{onClick:function(e){e.stopPropagation();guardarAjuste("tarjeta_angel");},style:{background:"#9b59b6",color:"#fff",border:"none",borderRadius:6,padding:"3px 7px",fontSize:12,cursor:"pointer",fontWeight:700}},"✓"),
-                re("button",{onClick:function(e){e.stopPropagation();setEditSaldo(null);},style:{background:"#ef4444",color:"#fff",border:"none",borderRadius:6,padding:"3px 7px",fontSize:12,cursor:"pointer"}},"✕")
+            ?re("div",{style:{display:"flex",gap:4,alignItems:"center",justifyContent:"center"}},
+                re("input",{type:"number",value:editSaldoVal,onChange:function(e){setEditSaldoVal(e.target.value);},onClick:function(e){e.stopPropagation();},style:{width:70,fontSize:13,padding:"3px 4px",border:"2px solid #9b59b6",borderRadius:6,textAlign:"center"},autoFocus:true}),
+                re("button",{onClick:function(e){e.stopPropagation();guardarAjuste("tarjeta_angel");},style:{background:"#9b59b6",color:"#fff",border:"none",borderRadius:6,padding:"3px 8px",fontWeight:700,cursor:"pointer"}},"✓"),
+                re("button",{onClick:function(e){e.stopPropagation();setEditSaldo(null);},style:{background:"#ef4444",color:"#fff",border:"none",borderRadius:6,padding:"3px 6px",cursor:"pointer"}},"✕")
               )
-            : re("div",{style:{fontSize:16,fontWeight:900,color:sA>=0?"#9b59b6":"#ef4444"}},fmt(sA)+" ✏️")
+            :re("div",{style:{fontSize:16,fontWeight:900,color:sA>=0?"#9b59b6":"#ef4444"}},fmt(sA)+" ✏️")
         )
       )
     ),
