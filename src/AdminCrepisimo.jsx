@@ -562,7 +562,7 @@ function ResumenTab(props) {
   }
 
   var vHoy = ventas.filter(function(v){return esHoy(v.timestamp)&&v.estadoPago!=="reembolsado";});
-  var gHoy = gastos.filter(function(g){return esHoy(g.timestamp);});
+  var gHoy = gastos.filter(function(g){return esHoy(g.timestamp)&&g.tipo!=="ajuste_saldo";});
   var tvHoy = vHoy.reduce(function(s,v){return s+v.total;},0);
 
   // Selector de mes navegable
@@ -573,7 +573,7 @@ function ResumenTab(props) {
   function mesNext(){var p=mesSelec.split("-");var y=parseInt(p[0]);var mo=parseInt(p[1]);mo++;if(mo>12){mo=1;y++;}var nx=y+"-"+(mo<10?"0":"")+mo;if(nx<=mesActual)setMesSelec(nx);}
   function esMes(ts){if(!ts)return false;var d=new Date(ts);var m=d.getFullYear()+"-"+(d.getMonth()+1<10?"0":"")+(d.getMonth()+1);return m===mesSelec;}
   var vMes = ventas.filter(function(v){return esMes(v.timestamp)&&v.estadoPago!=="reembolsado";});
-  var gMes = gastos.filter(function(g){return esMes(g.timestamp);});
+  var gMes = gastos.filter(function(g){return esMes(g.timestamp)&&g.tipo!=="ajuste_saldo";});
   var tgHoy = gHoy.filter(function(g){return g.tipo!=="transf_tarjeta";}).reduce(function(s,g){return s+g.monto;},0);
 
   // Ventas por tienda hoy
@@ -1454,6 +1454,7 @@ function EgresosAdmin(props) {
 
   var rango = getRango(periodo, fechaIni, fechaFin);
   var gFil = gastos.filter(function(g) {
+    if(g.tipo === "ajuste_saldo") return false;
     var enT = filtroT === "todas" || g.tienda === filtroT || (!g.tienda && filtroT === "global");
     return enT && enRango(g.timestamp, rango.ini, rango.fin);
   });
