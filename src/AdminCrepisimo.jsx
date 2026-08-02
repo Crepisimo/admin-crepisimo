@@ -663,8 +663,14 @@ function ResumenTab(props) {
           re("div",{style:{fontSize:16,fontWeight:900,color:sM>=0?"#3b82f6":"#ef4444"}},fmt(sM))
         ),
         re("div",{style:{background:"#fdf4ff",borderRadius:10,padding:10,textAlign:"center"}},
-          re("div",{style:{fontSize:11,color:"#888",marginBottom:4}},"💳 T. Angel"),
-          re("div",{style:{fontSize:16,fontWeight:900,color:sA>=0?"#9b59b6":"#ef4444"}},fmt(sA))
+          re("div",{style:{fontSize:11,color:"#888",marginBottom:4}},"💜 T. Angel"),
+          editSaldo==="tarjeta_angel"
+            ? re("div",{style:{display:"flex",gap:4,alignItems:"center"}},
+                re("input",{type:"number",value:editSaldoVal,onChange:function(e){setEditSaldoVal(e.target.value);},style:{width:"80px",fontSize:13,padding:"3px 6px",border:"2px solid #9b59b6",borderRadius:6,textAlign:"center"},autoFocus:true,onClick:function(e){e.stopPropagation();}}),
+                re("button",{onClick:function(e){e.stopPropagation();guardarAjuste("tarjeta_angel");},style:{background:"#9b59b6",color:"#fff",border:"none",borderRadius:6,padding:"3px 7px",fontSize:12,cursor:"pointer",fontWeight:700}},"✓"),
+                re("button",{onClick:function(e){e.stopPropagation();setEditSaldo(null);},style:{background:"#ef4444",color:"#fff",border:"none",borderRadius:6,padding:"3px 7px",fontSize:12,cursor:"pointer"}},"✕")
+              )
+            : re("div",{style:{fontSize:16,fontWeight:900,color:sA>=0?"#9b59b6":"#ef4444"}},fmt(sA)+" ✏️")
         )
       )
     ),
@@ -1785,7 +1791,7 @@ export default function AdminApp() {
     ),
 
     re("div",{style:{padding:16,maxWidth:800,margin:"0 auto"}},
-      tab==="resumen"    ? re(ResumenTab,   {ventas:ventas,gastos:gastos,inv:inv,tiendas:TIENDAS}) : null,
+      tab==="resumen"    ? re(ResumenTab,   {ventas:ventas,gastos:gastos,inv:inv,tiendas:TIENDAS,onAgregarGasto:agregarGasto}) : null,
       tab==="semana"     ? re(SemanaTab,    {ventas:ventas,gastos:gastos}) : null,
       tab==="productos"  ? re(ProductosTab, {ventas:ventas}) : null,
       tab==="graficas"   ? re(GraficasTab,  {ventas:ventas}) : null,
