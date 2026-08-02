@@ -553,6 +553,16 @@ function ResumenTab(props) {
   var vHoy = ventas.filter(function(v){return esHoy(v.timestamp)&&v.estadoPago!=="reembolsado";});
   var gHoy = gastos.filter(function(g){return esHoy(g.timestamp);});
   var tvHoy = vHoy.reduce(function(s,v){return s+v.total;},0);
+
+  // Selector de mes navegable
+  var mesActual=(function(){var d=new Date();return d.getFullYear()+"-"+(d.getMonth()+1<10?"0":"")+(d.getMonth()+1);})();
+  var sMesR=useState(mesActual);var mesSelec=sMesR[0];var setMesSelec=sMesR[1];
+  function mesNombres(m){var p=m.split("-");var y=p[0];var mo=parseInt(p[1]);var ns=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];return ns[mo-1]+" "+y;}
+  function mesPrev(){var p=mesSelec.split("-");var y=parseInt(p[0]);var mo=parseInt(p[1]);mo--;if(mo<1){mo=12;y--;}setMesSelec(y+"-"+(mo<10?"0":"")+mo);}
+  function mesNext(){var p=mesSelec.split("-");var y=parseInt(p[0]);var mo=parseInt(p[1]);mo++;if(mo>12){mo=1;y++;}var nx=y+"-"+(mo<10?"0":"")+mo;if(nx<=mesActual)setMesSelec(nx);}
+  function esMes(ts){if(!ts)return false;var d=new Date(ts);var m=d.getFullYear()+"-"+(d.getMonth()+1<10?"0":"")+(d.getMonth()+1);return m===mesSelec;}
+  var vMes = ventas.filter(function(v){return esMes(v.timestamp)&&v.estadoPago!=="reembolsado";});
+  var gMes = gastos.filter(function(g){return esMes(g.timestamp);});
   var tgHoy = gHoy.filter(function(g){return g.tipo!=="transf_tarjeta";}).reduce(function(s,g){return s+g.monto;},0);
 
   // Ventas por tienda hoy
@@ -576,8 +586,8 @@ function ResumenTab(props) {
   var sA  = ingA  - egA  - trAM + trMA + trEfA;
 
   // Totales
-  var tvAll = ventas.filter(function(v){return v.estadoPago!=="reembolsado";}).reduce(function(s,v){return s+v.total;},0);
-  var tgAll = gastos.filter(function(g){return g.tipo!=="transf_tarjeta";}).reduce(function(s,g){return s+g.monto;},0);
+  var tvAll = vMes.reduce(function(s,v){return s+v.total;},0);
+  var tgAll = gMes.filter(function(g){return g.tipo!=="transf_tarjeta";}).reduce(function(s,g){return s+g.monto;},0);
   var util  = tvAll - tgAll;
   var margen = tvAll > 0 ? (util/tvAll*100).toFixed(1)+"%" : "0%";
 
@@ -621,7 +631,7 @@ function ResumenTab(props) {
     re("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}},
       Card("Ventas totales",fmt(tvAll),"#22c55e","#f0fdf4"),
       Card("Egresos",fmt(tgAll),"#ef4444","#fff5f5"),
-      Card("Utilidad",fmt(util),util>=0?"#7c3aed":"#ef4444",util>=0?"#f3e8ff":"#fff5f5"),
+      Card("Utilidad del mes",fmt(util),util>=0?"#7c3aed":"#ef4444",util>=0?"#f3e8ff":"#fff5f5"),
       Card("Margen",margen,"#14b8a6","#f0fdfa")
     ),
 
@@ -1105,6 +1115,11 @@ function InventarioAdmin(props) {
   });
 
   return re("div", { style:{ paddingBottom:40 } },
+    re("div", { style:{ display:"flex",alignItems:"center",justifyContent:"center",gap:12,marginBottom:14,background:"#fff",borderRadius:12,padding:"10px 16px",boxShadow:"0 1px 4px rgba(0,0,0,.07)" } },
+      re("button", { onClick:mesPrev, style:{ border:"none",background:C.purpleL,color:C.dark,borderRadius:8,padding:"6px 14px",fontSize:18,cursor:"pointer",fontWeight:700 } }, "←"),
+      re("div", { style:{ fontSize:15,fontWeight:800,color:C.dark,minWidth:140,textAlign:"center" } }, mesNombres(mesSelec)),
+      re("button", { onClick:mesNext, disabled:mesSelec>=mesActual, style:{ border:"none",background:mesSelec>=mesActual?"#f0f0f0":C.purpleL,color:mesSelec>=mesActual?"#ccc":C.dark,borderRadius:8,padding:"6px 14px",fontSize:18,cursor:mesSelec>=mesActual?"not-allowed":"pointer",fontWeight:700 } }, "→")
+    ),
     re("div", { style:{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 } },
       re("div", { style:{ display:"flex", gap:6, flexWrap:"wrap" } },
         TIENDAS.map(function(t) {
