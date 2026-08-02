@@ -556,7 +556,8 @@ function ResumenTab(props) {
   async function guardarAjuste(campo){
     var monto=parseFloat(editSaldoVal);
     if(isNaN(monto))return;
-    var g={tipo:"ajuste_saldo",desc_gasto:campo,desc:campo,monto:monto,tienda:"global",seccion:"ajuste",metodoPago:"",timestamp:new Date().toISOString()};
+    var key=campo+"_"+mesSelec;
+    var g={tipo:"ajuste_saldo",desc_gasto:key,desc:key,monto:monto,tienda:"global",seccion:"ajuste",metodoPago:"",timestamp:new Date().toISOString()};
     if(props.onAgregarGasto)await props.onAgregarGasto(g);
     setEditSaldo(null);setEditSaldoVal("");
   }
@@ -592,9 +593,26 @@ function ResumenTab(props) {
   var trAM   = gastos.filter(function(g){return g.tipo==="transf_tarjeta"&&g.desc&&g.desc.indexOf("T.Angel->T.Migue")>=0;}).reduce(function(s,g){return s+g.monto;},0);
   var trEfM  = gastos.filter(function(g){return g.tipo==="transf_tarjeta"&&g.desc&&g.desc.indexOf("Efectivo->T.Migue")>=0;}).reduce(function(s,g){return s+g.monto;},0);
   var trEfA  = gastos.filter(function(g){return g.tipo==="transf_tarjeta"&&g.desc&&g.desc.indexOf("Efectivo->T.Angel")>=0;}).reduce(function(s,g){return s+g.monto;},0);
-  var sEf = ingEf - egEf - trEfM - trEfA;
-  var sM  = ingM  - egM  - trMA + trAM + trEfM;
-  var sA  = ingA  - egA  - trAM + trMA + trEfA;
+  // Saldos por mes: base del mes (ajustable) + transacciones del mes
+  function getBaseMes(campo) {
+    var key=campo+"_"+mesSelec;
+    var ajes=gastos.filter(function(g){return g.tipo==="ajuste_saldo"&&(g.desc_gasto||g.desc)===key;});
+    if(!ajes.length)return null;
+    ajes.sort(function(a,b){return new Date(a.timestamp)-new Date(b.timestamp);});
+    return ajes[ajes.length-1].monto||0;
+  }
+  var baseEf=getBaseMes("efectivo");
+  var baseM =getBaseMes("tarjeta_migue");
+  var baseA =getBaseMes("tarjeta_angel");
+  var ingEfMes=vMes.filter(function(v){return v.metodo==="efectivo";}).reduce(function(s,v){return s+v.total;},0);
+  var ingMMes =vMes.filter(function(v){return v.metodo==="clip"&&v.tienda!=="tichi";}).reduce(function(s,v){return s+v.total;},0);
+  var ingAMes =vMes.filter(function(v){return v.metodo==="clip"&&v.tienda==="tichi";}).reduce(function(s,v){return s+v.total;},0);
+  var egEfMes =gMes.filter(function(g){return g.tipo!=="transf_tarjeta"&&g.metodoPago==="efectivo";}).reduce(function(s,g){return s+g.monto;},0);
+  var egMMes  =gMes.filter(function(g){return g.tipo!=="transf_tarjeta"&&g.metodoPago==="tarjeta_migue";}).reduce(function(s,g){return s+g.monto;},0);
+  var egAMes  =gMes.filter(function(g){return g.tipo!=="transf_tarjeta"&&g.metodoPago==="tarjeta_angel";}).reduce(function(s,g){return s+g.monto;},0);
+  var sEf=baseEf!==null?baseEf+ingEfMes-egEfMes:ingEf-egEf-trEfM-trEfA;
+  var sM =baseM !==null?baseM +ingMMes -egMMes :ingM -egM -trMA+trAM+trEfM;
+  var sA =baseA !==null?baseA +ingAMes -egAMes :ingA -egA -trAM+trMA+trEfA;
 
   // Totales
   var tvAll = vMes.reduce(function(s,v){return s+v.total;},0);
