@@ -550,6 +550,17 @@ function ResumenTab(props) {
   var h = (function(){var d=new Date();return d.getFullYear()+"-"+(d.getMonth()+1<10?"0":"")+(d.getMonth()+1)+"-"+(d.getDate()<10?"0":"")+d.getDate();})();
   function esHoy(ts){if(!ts)return false;var d=new Date(ts);return d.getFullYear()+"-"+(d.getMonth()+1<10?"0":"")+(d.getMonth()+1)+"-"+(d.getDate()<10?"0":"")+d.getDate()===h;}
 
+  var sEdit=useState(null);var editSaldo=sEdit[0];var setEditSaldo=sEdit[1];
+  var sEditVal=useState("");var editSaldoVal=sEditVal[0];var setEditSaldoVal=sEditVal[1];
+
+  async function guardarAjuste(campo){
+    var monto=parseFloat(editSaldoVal);
+    if(isNaN(monto))return;
+    var g={tipo:"ajuste_saldo",desc_gasto:campo,desc:campo,monto:monto,tienda:"global",seccion:"ajuste",metodoPago:"",timestamp:new Date().toISOString()};
+    if(props.onAgregarGasto)await props.onAgregarGasto(g);
+    setEditSaldo(null);setEditSaldoVal("");
+  }
+
   var vHoy = ventas.filter(function(v){return esHoy(v.timestamp)&&v.estadoPago!=="reembolsado";});
   var gHoy = gastos.filter(function(g){return esHoy(g.timestamp);});
   var tvHoy = vHoy.reduce(function(s,v){return s+v.total;},0);
