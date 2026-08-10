@@ -621,12 +621,12 @@ function ResumenTab(props) {
   var margen = tvAll > 0 ? (util/tvAll*100).toFixed(1)+"%" : "0%";
 
   // Control MP
-  var tvCrep  = ventas.filter(function(v){return v.tienda==="centro"||v.tienda==="sanantonio";}).reduce(function(s,v){return s+v.total;},0);
-  var tvAmb   = ventas.filter(function(v){return v.tienda==="amburger";}).reduce(function(s,v){return s+v.total;},0);
-  var tvTichi = ventas.filter(function(v){return v.tienda==="tichi";}).reduce(function(s,v){return s+v.total;},0);
-  var mpCrep  = gastos.filter(function(g){return g.tipo==="insumo"&&(g.tienda==="centro"||g.tienda==="sanantonio");}).reduce(function(s,g){return s+g.monto;},0);
-  var mpAmb   = gastos.filter(function(g){return g.tipo==="insumo"&&g.tienda==="amburger";}).reduce(function(s,g){return s+g.monto;},0);
-  var mpTichi = gastos.filter(function(g){return g.tipo==="insumo"&&g.tienda==="tichi";}).reduce(function(s,g){return s+g.monto;},0);
+  var tvCrep  = vMes.filter(function(v){return v.tienda==="centro"||v.tienda==="sanantonio";}).reduce(function(s,v){return s+v.total;},0);
+  var tvAmb   = vMes.filter(function(v){return v.tienda==="amburger";}).reduce(function(s,v){return s+v.total;},0);
+  var tvTichi = vMes.filter(function(v){return v.tienda==="tichi";}).reduce(function(s,v){return s+v.total;},0);
+  var mpCrep  = gMes.filter(function(g){return g.tipo==="insumo"&&(g.tienda==="centro"||g.tienda==="sanantonio");}).reduce(function(s,g){return s+g.monto;},0);
+  var mpAmb   = gMes.filter(function(g){return g.tipo==="insumo"&&g.tienda==="amburger";}).reduce(function(s,g){return s+g.monto;},0);
+  var mpTichi = gMes.filter(function(g){return g.tipo==="insumo"&&g.tienda==="tichi";}).reduce(function(s,g){return s+g.monto;},0);
   var presCrep  = tvCrep*0.32, presAmb=tvAmb*0.42, presTichi=tvTichi*0.25;
   var pctCrep   = presCrep>0?Math.min(100,mpCrep/presCrep*100):0;
   var pctAmb    = presAmb>0?Math.min(100,mpAmb/presAmb*100):0;
