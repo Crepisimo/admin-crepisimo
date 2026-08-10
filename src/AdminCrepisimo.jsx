@@ -38,8 +38,27 @@ async function fetchAll(table, baseQuery) {
 async function updateStockDelta(tienda, deltas) {
   for (var i=0; i<deltas.length; i++) {
     var d=deltas[i]; if(!d.id||d.delta===0) continue;
-    try { await sbFetch("rpc/update_stock", {method:"POST", body:JSON.stringify({p_tienda:tienda,p_insumo_id:d.id,p_delta:d.delta})}); }
-    catch(e) { console.error("delta error:",e); }
+    try {
+      var r = await fetch(SB_URL+"/rest/v1/rpc/update_stock", {
+        method:"POST",
+        headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY,"Content-Type":"application/json"},
+        body:JSON.stringify({p_tienda:tienda,p_insumo_id:d.id,p_delta:d.delta})
+      });
+      if(!r.ok){
+        // Fallback: leer stock actual y hacer upsert directo
+        var cur = await fetch(SB_URL+"/rest/v1/inventario?tienda=eq."+tienda+"&insumo_id=eq."+d.id, {
+          headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY}
+        });
+        var rows = cur.ok ? await cur.json() : [];
+        var stockActual = rows.length>0 ? (rows[0].stock||0) : 0;
+        var nuevoStock = Math.max(0, stockActual+d.delta);
+        await fetch(SB_URL+"/rest/v1/inventario", {
+          method:"POST",
+          headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=minimal"},
+          body:JSON.stringify({tienda:tienda,insumo_id:d.id,stock:nuevoStock})
+        });
+      }
+    } catch(e) { console.error("updateStockDelta:", d.id, e.message); }
   }
 }
 
@@ -980,7 +999,7 @@ function GraficasTab(props) {
 function ModalEgreso(props) {
   var onSave = props.onSave, onClose = props.onClose;
   var insPorTienda = props.insPorTienda || {};
-  var st = useState({ tipo:"", rubro:"", tienda:"global", metodo:"", desc:"", monto:"", insId:"", cant:"", busq:"", err:"" });
+  var st = useState({ tipo:"", rubro:"", tienda:"centro", metodo:"", desc:"", monto:"", insId:"", cant:"", busq:"", err:"" });
   var gv = st[0]; var setGv = st[1];
   function upd(k, val) { setGv(function(p) { var n = Object.assign({}, p); n[k] = val; return n; }); }
 
@@ -1006,6 +1025,7 @@ function ModalEgreso(props) {
     if (!gv.monto || parseFloat(gv.monto) <= 0) { upd("err", "Ingresa el monto"); return; }
     if (gv.tipo === "mp_inv" && !gv.insId) { upd("err", "Selecciona el insumo"); return; }
     if (gv.tipo === "mp_inv" && (!gv.cant || parseFloat(gv.cant) <= 0)) { upd("err", "Ingresa la cantidad"); return; }
+    if (gv.tipo === "mp_inv" && (!gv.tienda || gv.tienda === "global")) { upd("err", "Selecciona la sucursal donde entra el inventario"); return; }
     if (gv.tipo === "personal" && !gv.rubro) { upd("err", "Selecciona el rubro"); return; }
     var cant = gv.tipo === "mp_inv" ? parseFloat(gv.cant) : 0;
     var tipo = gv.tipo === "mp_inv" || gv.tipo === "mp_no" ? "insumo" : gv.rubro;
