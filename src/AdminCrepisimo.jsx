@@ -1162,11 +1162,6 @@ function InventarioAdmin(props) {
   });
 
   return re("div", { style:{ paddingBottom:40 } },
-    re("div", { style:{ display:"flex",alignItems:"center",justifyContent:"center",gap:12,marginBottom:14,background:"#fff",borderRadius:12,padding:"10px 16px",boxShadow:"0 1px 4px rgba(0,0,0,.07)" } },
-      re("button", { onClick:mesPrev, style:{ border:"none",background:C.purpleL,color:C.dark,borderRadius:8,padding:"6px 14px",fontSize:18,cursor:"pointer",fontWeight:700 } }, "←"),
-      re("div", { style:{ fontSize:15,fontWeight:800,color:C.dark,minWidth:140,textAlign:"center" } }, mesNombres(mesSelec)),
-      re("button", { onClick:mesNext, disabled:mesSelec>=mesActual, style:{ border:"none",background:mesSelec>=mesActual?"#f0f0f0":C.purpleL,color:mesSelec>=mesActual?"#ccc":C.dark,borderRadius:8,padding:"6px 14px",fontSize:18,cursor:mesSelec>=mesActual?"not-allowed":"pointer",fontWeight:700 } }, "→")
-    ),
     re("div", { style:{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 } },
       re("div", { style:{ display:"flex", gap:6, flexWrap:"wrap" } },
         TIENDAS.map(function(t) {
