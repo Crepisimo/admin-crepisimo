@@ -1,64 +1,27 @@
+import {apiFetch, rpc, freshId} from "./secureClient.jsx";
 import React, { useState, useEffect } from "react";
 
 // ═══ SUPABASE ════════════════════════════════════════════════════════
 var SB_URL = "https://ctsijalwjuzmingdxozi.supabase.co";
 var SB_KEY = "sb_publishable_LJZo3cGXe7hhzajWSogATw_A8vGfRO7";
 
-async function sbFetch(path, opts) {
-  var extraHeaders = (opts && opts.headers) || {};
-  var mergedOpts = Object.assign({}, opts, {
-    headers: Object.assign({"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY,"Content-Type":"application/json"}, extraHeaders)
-  });
-  var r = await fetch(SB_URL + "/rest/v1/" + path, mergedOpts);
-  if (!r.ok) { var t = await r.text(); throw new Error(t); }
-  if (r.status === 204 || r.headers.get("content-length") === "0") return null;
-  return r.text().then(function(t) {
-    if (!t || t.trim() === "") return null;
-    try { return JSON.parse(t); } catch(e) { return null; }
-  });
-}
-function sbGet(t, q) { return sbFetch(t + (q?"?"+q:""), {method:"GET"}); }
-function sbPost(t, b) { return sbFetch(t, {method:"POST", headers:{"Prefer":"return=minimal"}, body:JSON.stringify(b)}); }
-function sbPatch(t, q, b) { return sbFetch(t+"?"+q, {method:"PATCH", body:JSON.stringify(b)}); }
-function sbDelete(t, q) { return sbFetch(t+"?"+q, {method:"DELETE"}); }
-async function fetchAll(table, baseQuery) {
-  var allRows = [];
-  var pageSize = 1000;
-  var offset = 0;
-  while (true) {
-    var q = (baseQuery ? baseQuery + "&" : "") + "limit=" + pageSize + "&offset=" + offset;
-    var rows = await sbGet(table, q);
-    if (!rows || rows.length === 0) break;
-    allRows = allRows.concat(rows);
-    if (rows.length < pageSize) break;
-    offset += pageSize;
+async function sbFetch(path,opts){return apiFetch(path,opts?.method||'GET',opts?.body?JSON.parse(opts.body):undefined,opts?.headers||{});}
+function sbGet(t,q){return sbFetch(t+(q?'?'+q:''),{method:'GET'});}
+function sbPost(t,b){return sbFetch(t,{method:'POST',body:JSON.stringify(b)});}
+function sbPatch(t,q,b){return sbFetch(t+'?'+q,{method:'PATCH',body:JSON.stringify(b)});}
+function sbDelete(t,q){return sbFetch(t+'?'+q,{method:'DELETE'});}
+async function fetchAll(table, baseQuery){
+  var all=[],pageSize=1000,offset=0;
+  for(;;){var query=(baseQuery?baseQuery+'&':'')+'limit='+pageSize+'&offset='+offset;
+    var rows=await sbGet(table,query);if(!rows?.length)break;
+    all=all.concat(rows);if(rows.length<pageSize)break;offset+=pageSize;
   }
-  return allRows;
+  return all;
 }
-async function updateStockDelta(tienda, deltas) {
-  for (var i=0; i<deltas.length; i++) {
-    var d=deltas[i]; if(!d.id||d.delta===0) continue;
-    try {
-      var r = await fetch(SB_URL+"/rest/v1/rpc/update_stock", {
-        method:"POST",
-        headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY,"Content-Type":"application/json"},
-        body:JSON.stringify({p_tienda:tienda,p_insumo_id:d.id,p_delta:d.delta})
-      });
-      if(!r.ok){
-        // Fallback: leer stock actual y hacer upsert directo
-        var cur = await fetch(SB_URL+"/rest/v1/inventario?tienda=eq."+tienda+"&insumo_id=eq."+d.id, {
-          headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY}
-        });
-        var rows = cur.ok ? await cur.json() : [];
-        var stockActual = rows.length>0 ? (rows[0].stock||0) : 0;
-        var nuevoStock = Math.max(0, stockActual+d.delta);
-        await fetch(SB_URL+"/rest/v1/inventario", {
-          method:"POST",
-          headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=minimal"},
-          body:JSON.stringify({tienda:tienda,insumo_id:d.id,stock:nuevoStock})
-        });
-      }
-    } catch(e) { console.error("updateStockDelta:", d.id, e.message); }
+async function updateStockDelta(tienda,deltas){
+  for(const d of deltas){if(!d.id||!d.delta)continue;
+    await rpc('app_ajustar_delta',{p_id:freshId(),p_tienda:tienda,p_insumo:d.id,
+      p_delta:d.delta,p_motivo:'Corrección manual administrativa'});
   }
 }
 
@@ -67,6 +30,35 @@ var re = React.createElement;
 function oz(n) { return Math.round(n*30*10000)/10000; }
 function pp(n) { return Math.round(n*0.33*30*10000)/10000; }
 function fmt(n) { return new Intl.NumberFormat("es-MX",{style:"currency",currency:"MXN"}).format(n||0); }
+function importeNetoClip(venta) {
+  // El neto es un importe guardado por venta (no se debe volver a descontar la comisión).
+  var total = Number(venta.total) || 0;
+  var neto = venta.netoRecibido;
+  if (neto !== null && neto !== undefined && neto !== "" && Number.isFinite(Number(neto))) return Number(neto);
+  return Math.round((total - (Number(venta.comisionClip)||0))*100)/100;
+}
+function tarjetaDestinoClip(venta) {
+  if (venta.terminalClip === "migue") return "tarjeta_migue";
+  if (venta.terminalClip === "angel") return "tarjeta_angel";
+  // Una venta sin terminal no se asigna a ninguna tarjeta: se deja pendiente de conciliar.
+  return "sin_terminal";
+}
+function impactoTransferencia(g, cuenta) {
+  if(g.tipo!=="transf_tarjeta") return 0;
+  // Registro legado: "T. Migue->T. Angel - nota". Ignorar los espacios del formato.
+  var desc = String(g.desc||"").toLowerCase().replace(/\s+/g,"");
+  var partes = desc.split("->");
+  if(partes.length<2) return 0;
+  function reconocer(s) {
+    if(s.indexOf("efectivo")===0) return "efectivo";
+    if(s.indexOf("t.migue")===0) return "tarjeta_migue";
+    if(s.indexOf("t.angel")===0) return "tarjeta_angel";
+    return "";
+  }
+  var desde = reconocer(partes[0]), hacia = reconocer(partes[1]);
+  return (hacia===cuenta?Number(g.monto)||0:0)-(desde===cuenta?Number(g.monto)||0:0);
+}
+
 function fmtFecha(ts) { if(!ts)return""; var d=new Date(ts); return d.getDate()+"/"+(d.getMonth()+1)+" "+d.getHours()+":"+(d.getMinutes()<10?"0":"")+d.getMinutes(); }
 function hoyStr() { var d=new Date(); return d.getFullYear()+"-"+(d.getMonth()+1<10?"0":"")+(d.getMonth()+1)+"-"+(d.getDate()<10?"0":"")+(d.getDate()); }
 function enRango(ts,ini,fin) { if(!ts)return false; var d=new Date(ts); var ld=d.getFullYear()+"-"+(d.getMonth()+1<10?"0":"")+(d.getMonth()+1)+"-"+(d.getDate()<10?"0":"")+(d.getDate()); return ld>=ini&&ld<=fin; }
@@ -191,7 +183,12 @@ var INSUMOS_INIT=[
   {id:"tajin",nombre:"Tajin",unidad:"g",minimo:159},
   {id:"coco_rayado",nombre:"Coco rayado",unidad:"g",minimo:10},
   {id:"tapioca",nombre:"Tapioca",unidad:"pza",minimo:5},
-];
+  {id:"coulis_tuna",nombre:"Coulis de tuna roja",unidad:"g",stock:0,minimo:200},
+  {id:"jar_jamaica",nombre:"Jarabe de jamaica",unidad:"ml",stock:0,minimo:500},
+  {id:"quesillo",nombre:"Quesillo",unidad:"porcion",stock:0,minimo:5},
+  {id:"chorizo",nombre:"Chorizo",unidad:"porcion",stock:0,minimo:5},
+  {id:"jar_maracuya",nombre:"Jarabe de maracuya",unidad:"ml",stock:0,minimo:500},
+  {id:"pay_queso",nombre:"Pay de queso",unidad:"g",stock:0,minimo:500}];
 var INSUMOS_AMB=[
   {id:"amb_carne",nombre:"Carne angus",unidad:"g",minimo:3000},
   {id:"amb_salchicha",nombre:"Salchicha",unidad:"pza",minimo:10},
@@ -348,6 +345,15 @@ var TI_BASE_CAFE_L = [{id:"ti_azucar",c:0.800},{id:"ti_agua",c:0.480},{id:"ti_be
 var TI_PACK_BOT = [{id:"ti_botella",c:1},{id:"ti_etiqueta_bot",c:1}];
 var TI_PACK_BOL = [{id:"ti_bolsa",c:1},{id:"ti_etiqueta_bol",c:1}];
 var R={
+  "Crepay de Queso Lechera":MB.concat([{id:"philadelphia",c:1},{id:"fresa",c:60},{id:"pay_queso",c:90},{id:"lechera",c:1},{id:"caja_crepa",c:1},{id:"papel_alim",c:1}]),
+  "Frappay de Queso":[{id:"pay_queso",c:90},{id:"lechera",c:30},{id:"base_neutra",c:30},{id:"philadelphia",c:1},{id:"leche_deslac",c:150},{id:"hielo",c:0.3},{id:"crema_batida",c:1},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
+  "Nube Tejate":[{id:"tejate",c:90},{id:"base_neutra",c:60},{id:"hielo",c:0.33},{id:"leche_deslac",c:180},{id:"nibs_cacao",c:5},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
+  "Lataro":[{id:"tapioca",c:1},{id:"jar_taro",c:39.6},{id:"leche_deslac",c:270},{id:"hielo",c:0.21},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
+  "Soda Maracuya":[{id:"jar_maracuya",c:49.5},{id:"perlas_mango",c:30},{id:"hielo",c:0.18},{id:"agua_mineral",c:270},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
+  "Crepay de Queso":MB.concat([{id:"philadelphia",c:1},{id:"fresa",c:60},{id:"pay_queso",c:90},{id:"nutella",c:1},{id:"caja_crepa",c:1},{id:"papel_alim",c:1}]),
+  "Horchatisimo":[{id:"leche_deslac",c:180.0},{id:"base_horchata",c:60.0},{id:"hielo",c:0.33},{id:"coulis_tuna",c:90.0},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
+  "Refresher Jamaica":[{id:"agua_mineral",c:300.0},{id:"jar_jamaica",c:49.5},{id:"perlas_fresa",c:30.0},{id:"fresa",c:60.0},{id:"hielo",c:0.18},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
+  "Chorisima":MB.concat([{id:"quesillo",c:1},{id:"philadelphia",c:35},{id:"chorizo",c:1},{id:"caja_crepa",c:1},{id:"papel_alim",c:1}]),
   "Oreo":[{id:"leche_deslac",c:118.3},{id:"oreo",c:59.1},{id:"choc_polvo",c:8.9},{id:"base_neutra",c:29.6},{id:"hielo",c:0.2957},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
   "Mango-Taro":[{id:"leche_deslac",c:118.3},{id:"jar_mango",c:118.3},{id:"mango",c:29.6},{id:"base_neutra",c:29.6},{id:"hielo",c:0.2662},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
   "Chocolate":[{id:"leche_deslac",c:118.3},{id:"choc_polvo",c:44.4},{id:"base_neutra",c:29.6},{id:"hielo",c:0.2957},{id:"vaso_18oz",c:1},{id:"tapa_domo",c:1},{id:"popote",c:1}],
@@ -407,7 +413,7 @@ var R={
   "Pepperonisima":[{id:"harina",c:760/21},{id:"azucar_masa",c:240/21},{id:"leche_masa",c:2/21},{id:"mant_masa",c:90/21},{id:"liquido_amarillo",c:20/21},{id:"caja_crepa",c:1},{id:"papel_alim",c:1},{id:"philadelphia",c:35},{id:"mozzarella",c:40},{id:"jamon",c:70},{id:"pepperoni",c:50}],
   "Hawaii":      [{id:"harina",c:760/21},{id:"azucar_masa",c:240/21},{id:"leche_masa",c:2/21},{id:"mant_masa",c:90/21},{id:"liquido_amarillo",c:20/21},{id:"caja_crepa",c:1},{id:"papel_alim",c:1},{id:"philadelphia",c:35},{id:"mozzarella",c:40},{id:"jamon",c:70},{id:"pina_almibar",c:1}],
   "Crepizzima":  [{id:"harina",c:760/21},{id:"azucar_masa",c:240/21},{id:"leche_masa",c:2/21},{id:"mant_masa",c:90/21},{id:"liquido_amarillo",c:20/21},{id:"caja_crepa",c:1},{id:"papel_alim",c:1},{id:"mozzarella",c:40},{id:"pepperoni",c:50},{id:"salsa_tomate",c:35},{id:"champi",c:20}],
-}
+};
 var R_AMB={
   "Chaoo":BP.concat([{id:"amb_q_americano",c:1},{id:"amb_q_manchego",c:1},{id:"amb_chile_jalapeno",c:50},{id:"amb_lechuga",c:1}]).concat(GU).concat([{id:"amb_papel_termico",c:1}]),
   "Patrona":BP.concat(AD).concat([{id:"amb_q_americano",c:1},{id:"amb_tocino",c:50},{id:"amb_salchicha",c:0.5},{id:"amb_tomate",c:66},{id:"amb_lechuga",c:1}]).concat([{id:"amb_papel_termico",c:1}]),
@@ -601,37 +607,45 @@ function ResumenTab(props) {
   tiendas.forEach(function(t){vtHoy[t.id]=0;});
   vHoy.forEach(function(v){if(vtHoy[v.tienda]!==undefined)vtHoy[v.tienda]+=v.total;});
 
-  // Saldos
-  var ingEf  = ventas.filter(function(v){return v.metodo==="efectivo";}).reduce(function(s,v){return s+v.total;},0);
-  var ingM   = ventas.filter(function(v){return v.metodo==="clip"&&v.tienda!=="tichi";}).reduce(function(s,v){return s+v.total;},0);
-  var ingA   = ventas.filter(function(v){return v.metodo==="clip"&&v.tienda==="tichi";}).reduce(function(s,v){return s+v.total;},0);
-  var egEf   = gastos.filter(function(g){return g.tipo!=="transf_tarjeta"&&g.metodoPago==="efectivo";}).reduce(function(s,g){return s+g.monto;},0);
-  var egM    = gastos.filter(function(g){return g.tipo!=="transf_tarjeta"&&g.metodoPago==="tarjeta_migue";}).reduce(function(s,g){return s+g.monto;},0);
-  var egA    = gastos.filter(function(g){return g.tipo!=="transf_tarjeta"&&g.metodoPago==="tarjeta_angel";}).reduce(function(s,g){return s+g.monto;},0);
-  var trMA   = gastos.filter(function(g){return g.tipo==="transf_tarjeta"&&g.desc&&g.desc.indexOf("T.Migue->")>=0;}).reduce(function(s,g){return s+g.monto;},0);
-  var trAM   = gastos.filter(function(g){return g.tipo==="transf_tarjeta"&&g.desc&&g.desc.indexOf("T.Angel->T.Migue")>=0;}).reduce(function(s,g){return s+g.monto;},0);
-  var trEfM  = gastos.filter(function(g){return g.tipo==="transf_tarjeta"&&g.desc&&g.desc.indexOf("Efectivo->T.Migue")>=0;}).reduce(function(s,g){return s+g.monto;},0);
-  var trEfA  = gastos.filter(function(g){return g.tipo==="transf_tarjeta"&&g.desc&&g.desc.indexOf("Efectivo->T.Angel")>=0;}).reduce(function(s,g){return s+g.monto;},0);
+  // Los reembolsos no son ingresos vigentes.
+  var ventasVigentes = ventas.filter(function(v){return v.estadoPago!=="reembolsado";});
+  // Saldos netos por TERMINAL, no por sucursal. El bruto permanece en las ventas.
   // Saldos por mes: base del mes (ajustable) + transacciones del mes
   function getBaseMes(campo) {
     var key=campo+"_"+mesSelec;
     var ajes=gastos.filter(function(g){return g.tipo==="ajuste_saldo"&&(g.desc_gasto||g.desc)===key;});
     if(!ajes.length)return null;
     ajes.sort(function(a,b){return new Date(a.timestamp)-new Date(b.timestamp);});
-    return ajes[ajes.length-1].monto||0;
+    return ajes[ajes.length-1]; // Es saldo capturado EN esa fecha, no base del primer día.
   }
   var baseEf=getBaseMes("efectivo");
   var baseM =getBaseMes("tarjeta_migue");
   var baseA =getBaseMes("tarjeta_angel");
   var ingEfMes=vMes.filter(function(v){return v.metodo==="efectivo";}).reduce(function(s,v){return s+v.total;},0);
-  var ingMMes =vMes.filter(function(v){return v.metodo==="clip"&&v.tienda!=="tichi";}).reduce(function(s,v){return s+v.total;},0);
-  var ingAMes =vMes.filter(function(v){return v.metodo==="clip"&&v.tienda==="tichi";}).reduce(function(s,v){return s+v.total;},0);
-  var egEfMes =gMes.filter(function(g){return g.tipo!=="transf_tarjeta"&&g.metodoPago==="efectivo";}).reduce(function(s,g){return s+g.monto;},0);
-  var egMMes  =gMes.filter(function(g){return g.tipo!=="transf_tarjeta"&&g.metodoPago==="tarjeta_migue";}).reduce(function(s,g){return s+g.monto;},0);
-  var egAMes  =gMes.filter(function(g){return g.tipo!=="transf_tarjeta"&&g.metodoPago==="tarjeta_angel";}).reduce(function(s,g){return s+g.monto;},0);
-  var sEf=baseEf!==null?baseEf+ingEfMes-egEfMes:ingEf-egEf-trEfM-trEfA;
-  var sM =baseM !==null?baseM +ingMMes -egMMes :ingM -egM -trMA+trAM+trEfM;
-  var sA =baseA !==null?baseA +ingAMes -egAMes :ingA -egA -trAM+trMA+trEfA;
+  var ingMMes =vMes.filter(function(v){return v.metodo==="clip"&&tarjetaDestinoClip(v)==="tarjeta_migue";}).reduce(function(s,v){return s+importeNetoClip(v);},0);
+  var ingAMes =vMes.filter(function(v){return v.metodo==="clip"&&tarjetaDestinoClip(v)==="tarjeta_angel";}).reduce(function(s,v){return s+importeNetoClip(v);},0);
+  function saldoCalculado(cuenta, base) {
+    // Si el usuario ajusta el saldo, solo sumamos operaciones posteriores al ajuste.
+    function posterior(x){return !base||new Date(x.timestamp)>new Date(base.timestamp);}
+    var movVentas=(base?vMes:ventasVigentes).filter(posterior).reduce(function(s,v){
+      if(cuenta==="efectivo")return s+(v.metodo==="efectivo"?(Number(v.total)||0):0);
+      return s+(v.metodo==="clip"&&tarjetaDestinoClip(v)===cuenta?importeNetoClip(v):0);
+    },0);
+    var movGastos=(base?gMes:gastos).filter(posterior).reduce(function(s,g){
+      if(g.tipo==="transf_tarjeta")return s-impactoTransferencia(g,cuenta);
+      if(g.tipo==="ajuste_saldo")return s;
+      return s+(g.metodoPago===cuenta?(Number(g.monto)||0):0);
+    },0);
+    return (base?(Number(base.monto)||0):0)+movVentas-movGastos;
+  }
+  var sEf=saldoCalculado("efectivo",baseEf);
+  var sM=saldoCalculado("tarjeta_migue",baseM);
+  var sA=saldoCalculado("tarjeta_angel",baseA);
+  var comisionesClipMes = vMes.filter(function(v){return v.metodo==="clip";}).reduce(function(s,v){return s+(Number(v.comisionClip)||0);},0);
+  var clipBrutoMes = vMes.filter(function(v){return v.metodo==="clip";}).reduce(function(s,v){return s+(Number(v.total)||0);},0);
+  var clipNetoMes = vMes.filter(function(v){return v.metodo==="clip";}).reduce(function(s,v){return s+importeNetoClip(v);},0);
+  var clipSinAsignarMes = vMes.filter(function(v){return v.metodo==="clip"&&tarjetaDestinoClip(v)==="sin_terminal";}).reduce(function(s,v){return s+importeNetoClip(v);},0);
+  var clipSinTerminal = ventasVigentes.filter(function(v){return v.metodo==="clip"&&!v.terminalClip;}).length;
 
   // Totales
   var tvAll = vMes.reduce(function(s,v){return s+v.total;},0);
@@ -732,6 +746,11 @@ function ResumenTab(props) {
               )
             :re("div",{style:{fontSize:16,fontWeight:900,color:sA>=0?"#9b59b6":"#ef4444"}},fmt(sA)+" ✏️")
         )
+      ),
+      re("div",{style:{marginTop:10,fontSize:11,color:"#666",lineHeight:1.5}},
+        "Clip " + mesNombres(mesSelec) + ": bruto " + fmt(clipBrutoMes) + " · comisión registrada " + fmt(comisionesClipMes) + " · neto estimado " + fmt(clipNetoMes),
+        re("div",null,"Saldos calculados, NO conciliados contra movimientos/depositos bancarios."),
+        clipSinTerminal>0?re("div",{style:{color:"#b45309"}},clipSinTerminal+" cobro(s) de Clip sin terminal. Neto del mes sin asignar a ninguna tarjeta: "+fmt(clipSinAsignarMes)+". Conciliar manualmente."):null
       )
     ),
 
@@ -1037,11 +1056,8 @@ function ModalEgreso(props) {
       monto: parseFloat(gv.monto), metodoPago: gv.metodo, desc: gv.desc || "",
       tienda: gv.tienda || "global", timestamp: new Date().toISOString(),
     };
-    if (gv.tipo === "mp_inv" && gv.insId && cant > 0) {
-      await updateStockDelta(gv.tienda, [{ id: gv.insId, delta: cant }]);
-    }
-    onSave(gasto);
-    onClose();
+    try{await onSave(gasto);onClose();}
+    catch(e){upd('err','No se guardó el gasto o compra: '+e.message);}
   }
 
   var tiendaOpts = gv.tipo === "personal"
@@ -1170,11 +1186,11 @@ function InventarioAdmin(props) {
   var st9 = useState(false); var modalTransfInv = st9[0]; var setModalTransfInv = st9[1];
 
   var ins = datos[tienda] || [];
-  var agotados = ins.filter(function(i) { return (i.stock||0) === 0; });
+  var agotados = ins.filter(function(i) { return (i.stock||0) <= 0; });
   var bajos = ins.filter(function(i) { return (i.stock||0) > 0 && (i.stock||0) <= i.minimo; });
 
   var insFil = ins.filter(function(i) {
-    if (cat === "agotados") return (i.stock||0) === 0;
+    if (cat === "agotados") return (i.stock||0) <= 0;
     if (cat === "bajos") return (i.stock||0) > 0 && (i.stock||0) <= i.minimo;
     return true;
   }).filter(function(i) {
@@ -1202,7 +1218,7 @@ function InventarioAdmin(props) {
     re("div", { style:{ display:"flex", gap:8, marginBottom:14 } },
       re("div", { style:{ flex:1, background:agotados.length>0?"#ffebee":"#f0fdf4", borderRadius:12, padding:"10px 14px", textAlign:"center" } },
         re("div", { style:{ fontSize:22, fontWeight:900, color:agotados.length>0?C.red:C.green } }, agotados.length),
-        re("div", { style:{ fontSize:11, color:"#888" } }, "Agotados")
+        re("div", { style:{ fontSize:11, color:"#888" } }, "En cero o negativos")
       ),
       re("div", { style:{ flex:1, background:bajos.length>0?"#fff8e1":"#f0fdf4", borderRadius:12, padding:"10px 14px", textAlign:"center" } },
         re("div", { style:{ fontSize:22, fontWeight:900, color:bajos.length>0?C.amber:C.green } }, bajos.length),
@@ -1228,7 +1244,7 @@ function InventarioAdmin(props) {
       insFil.length === 0 ? re("div", { style:{ padding:24, textAlign:"center", color:"#bbb" } }, "Sin insumos") :
       insFil.map(function(ins2, idx) {
         var stock = ins2.stock || 0;
-        var isAgot = stock === 0;
+        var isAgot = stock <= 0;
         var isBajo = stock > 0 && stock <= ins2.minimo;
         return re("div", { key:ins2.id,
           onClick:function() { setEditIns(ins2); setEditVal(""); setEditMode("sumar"); setEditPrecio(""); setEditCant(""); },
@@ -1251,13 +1267,10 @@ function InventarioAdmin(props) {
     modalTransfInv ? re(ModalTransferenciaInventario, {
       tiendaOrigen: tienda,
       insOrigen: ins,
-      onTransferir: function(origen, destino, insId2, cantidad) {
-        if (onUpdate) {
-          var insOrig = ins.find(function(i){return i.id===insId2;});
-          if (insOrig) onUpdate(origen, insId2, Math.max(0,(insOrig.stock||0)-cantidad), insOrig.costoPorU);
-          // Note: destino update will show on next reload
-        }
-        setModalTransfInv(false);
+      onTransferir: async function(origen,destino,insId2,cantidad){
+        try{await rpc('app_transferir',{p_id:freshId(),p_origen:origen,p_destino:destino,p_insumo:insId2,p_cantidad:cantidad});
+          if(props.onRefresh)await props.onRefresh();setModalTransfInv(false);
+        }catch(e){window.alert('No se guardó el traspaso: '+e.message);throw e;}
       },
       onClose: function() { setModalTransfInv(false); }
     }) : null,
@@ -1311,7 +1324,7 @@ function InventarioAdmin(props) {
           var delta = nuevo - stock;
           var costoPorU = editPrecio && editCant && parseFloat(editPrecio)>0 && parseFloat(editCant)>0
             ? parseFloat(editPrecio)/parseFloat(editCant) : editIns.costoPorU;
-          await updateStockDelta(tienda, [{ id:editIns.id, delta:delta }]);
+          try{await rpc('app_ajustar_stock',{p_id:freshId(),p_tienda:tienda,p_insumo:editIns.id,p_nuevo:nuevo,p_motivo:'Conteo/corrección manual administrativo',p_costo:costoPorU??null});}catch(e){window.alert('No se pudo ajustar: '+e.message);return;}
           if (onUpdate) onUpdate(tienda, editIns.id, nuevo, costoPorU);
           setEditIns(null); setEditVal(""); setEditPrecio(""); setEditCant("");
         }, style:BS(C.dark,"#fff",2) }, "Guardar")
@@ -1626,12 +1639,9 @@ function ModalTransferenciaInventario(props) {
     if (!cant || parseFloat(cant) <= 0) { setErr("Ingresa la cantidad"); return; }
     var cantidad = parseFloat(cant);
     if (cantidad > (insSel.stock || 0)) { setErr("No hay suficiente stock (" + (insSel.stock||0) + " " + insSel.unidad + ")"); return; }
-    // Resta en origen
-    await updateStockDelta(tiendaOrigen, [{ id:insId, delta:-cantidad }]);
-    // Suma en destino
-    await updateStockDelta(tiendaDestino, [{ id:insId, delta:cantidad }]);
-    onTransferir(tiendaOrigen, tiendaDestino, insId, cantidad);
-    onClose();
+    try{
+      await onTransferir(tiendaOrigen,tiendaDestino,insId,cantidad);onClose();
+    }catch(e){setErr('No se pudo transferir: '+e.message);}
   }
 
   return re("div", { style:OV }, re("div", { style:MD },
@@ -1692,19 +1702,18 @@ function ModalTransferenciaDinero(props) {
   ];
   function lbl(id) { var m = METODOS.find(function(x){return x.id===id;}); return m?m.lbl:id; }
 
-  function guardar() {
+  async function guardar() {
     if (!de) { setErr("Selecciona origen"); return; }
     if (!para) { setErr("Selecciona destino"); return; }
     if (de === para) { setErr("Origen y destino deben ser diferentes"); return; }
     if (!monto || parseFloat(monto) <= 0) { setErr("Ingresa el monto"); return; }
     var descFinal = lbl(de).replace(/[💵💳]/g,"").trim() + "->" + lbl(para).replace(/[💵💳]/g,"").trim() + (desc?" - "+desc:"");
-    onSave({
+    try{await onSave({
       tipo:"transf_tarjeta", seccion:"externo",
       monto:parseFloat(monto), desc:descFinal,
       metodoPago:de, timestamp:new Date().toISOString(),
       tienda:"global", insumoId:"", insumoNombre:"", cantidad:0, unidad:""
-    });
-    onClose();
+    });onClose();}catch(e){setErr('No se guardó la transferencia: '+e.message);}
   }
 
   return re("div", { style:OV }, re("div", { style:MD },
@@ -1752,6 +1761,22 @@ function ModalTransferenciaDinero(props) {
   ));
 }
 
+function HistorialEmpleados(){
+  var [registros,setRegistros]=useState([]),[loading,setLoading]=useState(true),[err,setErr]=useState('');
+  useEffect(function(){rpc('app_historial',{p_limite:300}).then(function(r){setRegistros(r||[]);}).catch(function(e){setErr(e.message);}).finally(function(){setLoading(false);});},[]);
+  return re('div',{style:{background:'white',padding:18,borderRadius:14}},
+    re('h2',{style:{fontSize:19}},'Historial por empleado'),
+    re('p',{style:{fontSize:13,color:'#777'}},'Ventas, compras, transferencias, ajustes, devoluciones y cambios guardados en la base. Solo operaciones posteriores a instalar la migración.'),
+    loading?re('p',null,'Consultando movimientos...'):null,
+    err?re('p',{style:{color:'#b91c1c'}},err):null,
+    registros.map(function(x){return re('div',{key:x.id,style:{padding:'11px 2px',borderBottom:'1px solid #ddd',display:'flex',flexWrap:'wrap',gap:12}},
+      re('div',{style:{minWidth:130,fontSize:12,color:'#777'}},new Date(x.fecha).toLocaleString('es-MX')),
+      re('div',{style:{flex:1,minWidth:180}},re('strong',null,(x.empleado||'Empleado')+' ('+(x.codigo||'')+')'),
+      re('div',{style:{fontSize:12,color:'#666'}},x.clase+' · '+(x.tiendas||'-')),
+      x.insumos?re('div',{style:{fontSize:11,color:'#555'}},'Insumos: '+x.insumos+(x.stock_anterior!==null && x.stock_nuevo!==null?' · Stock: '+x.stock_anterior+' → '+x.stock_nuevo:'')):null));})
+  );
+}
+
 // ═══ ADMIN APP ══════════════════════════════════════════════════════
 
 // ═══ ADMIN APP ════════════════════════════════════════════════════
@@ -1775,8 +1800,8 @@ export default function AdminApp() {
         var rawV=await fetchAll("ventas","select=*&order=timestamp.desc")||[];
         var rawG=await fetchAll("gastos","select=*&order=timestamp.desc")||[];
         var rawI=await sbGet("inventario","select=*")||[];
-        var ventasApp=rawV.map(function(v){return{timestamp:v.timestamp,tienda:v.tienda,total:v.total||0,metodo:v.metodo||"efectivo",comisionClip:v.comision_clip||0,comisionDidi:v.comision_didi||0,items:v.items||[],estadoPago:v.estado_pago||"pagado",netoRecibido:v.neto_recibido||null};});
-        var gastosApp=rawG.map(function(g){return{timestamp:g.timestamp,tienda:g.tienda,seccion:g.seccion,tipo:g.tipo,monto:g.monto||0,desc:g.desc_gasto||"",insumoId:g.insumo_id||"",insumoNombre:g.insumo_nombre||"",cantidad:g.cantidad||0,unidad:g.unidad||"",metodoPago:g.metodo_pago||""};});
+        var ventasApp=rawV.map(function(v){return{timestamp:v.timestamp,tienda:v.tienda,total:v.total||0,metodo:v.metodo||"efectivo",comisionClip:v.comision_clip||0,comisionDidi:v.comision_didi||0,items:v.items||[],estadoPago:v.estado_pago||"pagado",terminalClip:v.terminal_clip||"",netoRecibido:v.neto_recibido===null||v.neto_recibido===undefined?null:v.neto_recibido};});
+        var gastosApp=rawG.map(function(g){return{_dbId:g.id,timestamp:g.timestamp,tienda:g.tienda,seccion:g.seccion,tipo:g.tipo,monto:g.monto||0,desc:g.desc_gasto||"",insumoId:g.insumo_id||"",insumoNombre:g.insumo_nombre||"",cantidad:g.cantidad||0,unidad:g.unidad||"",metodoPago:g.metodo_pago||""};});
         function restoreIns(base,tid){return base.map(function(ins){var row=rawI.find(function(r){return r.tienda===tid&&r.insumo_id===ins.id;});return row?Object.assign({},ins,{stock:row.stock||0,costoPorU:row.costo_por_u||null}):ins;});}
         setVentas(ventasApp);
         setGastos(gastosApp);
@@ -1791,26 +1816,35 @@ export default function AdminApp() {
     })();
   },[]);
 
-  async function agregarGasto(g) {
+  async function actualizarInventarioAdmin(){
+    try{var rawI=await sbGet('inventario','select=*');setInv(function(prev){
+      var n={};for(const t of ['centro','sanantonio','amburger','tichi']){
+        n[t]=(prev[t]||[]).map(i=>{const row=(rawI||[]).find(r=>r.tienda===t&&r.insumo_id===i.id);
+          return row?{...i,stock:Number(row.stock)}:i;});
+      }return n;});
+    }catch(e){console.warn('Los datos se guardaron, pero la pantalla requiere recargar:',e.message);}
+  }
+  async function agregarGasto(g){
+    var id=g._dbId||freshId();g._dbId=id;
+    await rpc('app_registrar_gasto',{p_id:id,p_gasto:{timestamp:g.timestamp||new Date().toISOString(),
+      tienda:g.tienda||'global',seccion:g.seccion||'externo',tipo:g.tipo||'otro',monto:g.monto||0,
+      desc_gasto:g.desc||'',insumo_id:g.insumoId||'',insumo_nombre:g.insumoNombre||'',
+      cantidad:g.cantidad||0,unidad:g.unidad||'',metodo_pago:g.metodoPago||''}});
     setGastos(function(p){return [g].concat(p);});
-    try {
-      await sbPost("gastos",{timestamp:g.timestamp||new Date().toISOString(),tienda:g.tienda||"global",seccion:g.seccion||"externo",tipo:g.tipo||"otro",monto:g.monto||0,desc_gasto:g.desc||"",insumo_id:g.insumoId||"",insumo_nombre:g.insumoNombre||"",cantidad:g.cantidad||0,unidad:g.unidad||"",metodo_pago:g.metodoPago||""});
-      if(g.tipo==="insumo"&&g.insumoId&&g.cantidad>0){
-        setInv(function(prev){var n=Object.assign({},prev);n[g.tienda]=(prev[g.tienda]||[]).map(function(i){return i.id===g.insumoId?Object.assign({},i,{stock:(i.stock||0)+g.cantidad}):i;});return n;});
-      }
-    } catch(e){console.error("save gasto:",e);}
+    if(g.cantidad>0)await actualizarInventarioAdmin();
   }
-
-  async function editarGasto(gasto,changes) {
-    setGastos(function(p){return p.map(function(g){return g.timestamp===gasto.timestamp&&g.tienda===gasto.tienda?Object.assign({},g,changes):g;});});
-    try { await sbPatch("gastos","timestamp=eq."+encodeURIComponent(gasto.timestamp)+"&tienda=eq."+gasto.tienda,{monto:changes.monto,desc_gasto:changes.desc||""}); }
-    catch(e){console.error("edit gasto:",e);}
+  async function editarGasto(gasto,changes){
+    try{if(!gasto._dbId)throw new Error('Recarga gastos para recuperar identificadores');
+      await rpc('app_editar_gasto',{p_id:gasto._dbId,p_monto:changes.monto,p_descripcion:changes.desc||''});
+      setGastos(function(p){return p.map(function(g){return g._dbId===gasto._dbId?Object.assign({},g,changes):g;});});
+    }catch(e){window.alert('Error al editar: '+e.message);}
   }
-
-  async function eliminarGasto(gasto) {
-    setGastos(function(p){return p.filter(function(g){return !(g.timestamp===gasto.timestamp&&g.tienda===gasto.tienda);});});
-    try { await sbDelete("gastos","timestamp=eq."+encodeURIComponent(gasto.timestamp)+"&tienda=eq."+gasto.tienda); }
-    catch(e){console.error("del gasto:",e);}
+  async function eliminarGasto(gasto){
+    try{if(!gasto._dbId)throw new Error('Recarga gastos para recuperar identificadores');
+      await rpc('app_eliminar_gasto',{p_id:gasto._dbId});
+      setGastos(function(p){return p.filter(function(g){return g._dbId!==gasto._dbId;});});
+      await actualizarInventarioAdmin();
+    }catch(e){window.alert('Error al eliminar: '+e.message);}
   }
 
   function handleUpdate(tienda,insId,newStock,costoPorU) {
@@ -1825,7 +1859,7 @@ export default function AdminApp() {
   );
   if(error) return re("div",{style:{padding:24,color:C.red,textAlign:"center",fontSize:16}},error);
 
-  var TABS=[["resumen","📊 Resumen"],["semana","📅 Semanal"],["productos","🏆 Productos"],["graficas","📈 Gráficas"],["ventas","💰 Ventas"],["inventario","📦 Inventario"],["egresos","💸 Egresos"]];
+  var TABS=[["resumen","📊 Resumen"],["semana","📅 Semanal"],["productos","🏆 Productos"],["graficas","📈 Gráficas"],["ventas","💰 Ventas"],["inventario","📦 Inventario"],["egresos","💸 Egresos"],["historial","👥 Movimientos por empleado"]];
 
   return re("div",{style:{minHeight:"100vh",background:"#f5f5f7",fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"}},
 
@@ -1853,8 +1887,9 @@ export default function AdminApp() {
       tab==="productos"  ? re(ProductosTab, {ventas:ventas}) : null,
       tab==="graficas"   ? re(GraficasTab,  {ventas:ventas}) : null,
       tab==="ventas"     ? re(VentasAdmin,  {ventas:ventas,tiendaId:tiendaSel,onTiendaChange:setTiendaSel}) : null,
-      tab==="inventario" ? re(InventarioAdmin,{datos:inv,onUpdate:handleUpdate}) : null,
-      tab==="egresos"    ? re(EgresosAdmin, {gastos:gastos,ventas:ventas,onEditar:editarGasto,onEliminar:eliminarGasto}) : null
+      tab==="inventario" ? re(InventarioAdmin,{datos:inv,onUpdate:handleUpdate,onRefresh:actualizarInventarioAdmin}) : null,
+      tab==="egresos"    ? re(EgresosAdmin, {gastos:gastos,ventas:ventas,onEditar:editarGasto,onEliminar:eliminarGasto}) : null,
+      tab==="historial" ? re(HistorialEmpleados) : null
     ),
 
     modalEgr?re(ModalEgreso,{onSave:agregarGasto,onClose:function(){setModalEgr(false);},insPorTienda:insPorTienda}):null,
