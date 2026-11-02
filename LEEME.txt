@@ -1,24 +1,22 @@
-CREPÍSIMO · ADMINISTRATIVO · REDISEÑO SENCILLO
-==============================================
+ADMINISTRATIVO CREPÍSIMO — REVISIÓN FINANCIERA Y DE PRESENTACIÓN
+Versión candidata de comprobación: 2 de noviembre de 2026
 
-Esta entrega recupera la distribución conocida del administrativo:
-Resumen · Semanal · Productos · Gráficas · Ventas · Inventario · Egresos · Movimientos por empleado.
+- Se mantienen las pestañas originales: Resumen, Semanal, Productos, Gráficas, Ventas, Inventario, Egresos y Movimientos por empleado.
+- Resumen enseña el mes seleccionado con botones para navegar entre meses.
+- 'Ventas menos egresos' sustituye al nombre engañoso 'Utilidad', porque no contempla todos los costes contables.
+- Nueva sección plegable 'Corte por sucursal' dentro de Resumen, con selector de fecha, ventas por método, gastos individuales y forma de pago.
+- Los gastos con tarjeta no disminuyen el efectivo; gastos antiguos sin medio de pago se señalan.
+- Se mantienen autenticación, edición de gastos, inventarios, cálculos de saldo existentes y conexión Supabase.
+- No ejecuta SQL nuevo.
 
-Cambios visuales:
-- Fondo claro, encabezado azul marino y tarjetas más limpias.
-- Botones grandes, mayor legibilidad y secciones visibles sin barra horizontal.
-- Distribución adaptable a computadora y tablet.
-- Se retiraron el dashboard nuevo, menú lateral y filtros globales añadidos anteriormente.
-
-Se conservó la base de la corrección anterior de fechas y sumatorias dentro de las secciones originales.
-No se añadieron funciones nuevas, ni se alteraron la autenticación, los endpoints ni las operaciones de Supabase.
+ADVERTENCIAS
+- La consulta no es un cierre persistido ni una conciliación bancaria.
+- Saldos Clip son estimados con registros de ventas; no equivalen a depósitos.
+- Debe probarse en Vercel y contrastarse contra cortes reales de cada sucursal.
 
 INSTALACIÓN
-1. Guarda una copia del repositorio actual.
-2. Descomprime este archivo.
-3. Sube los archivos y carpetas internos a la RAÍZ del repositorio administrativo en GitHub.
-4. Confirma que Vercel haya compilado y publicado correctamente.
-5. Abre la app y revisa Resumen, Ventas, Inventario y Egresos antes de usarla de manera habitual.
-
-No hace falta ejecutar SQL.
-Esta entrega fue validada con revisión de sintaxis y estructura; no se ha probado contra tu base de datos real ni con un build Vite completo.
+1) Respalda el repositorio administrativo.
+2) Sube contenido de este ZIP a la raíz de rama de pruebas del ADMIN.
+3) Revisa en Vercel el estado Ready.
+4) Compara las mismas fechas y sucursales contra el POS.
+5) Publica solo si las cifras y las operaciones coinciden.

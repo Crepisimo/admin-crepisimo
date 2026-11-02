@@ -33,3 +33,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .simple-main h1,.simple-main h2,.simple-main h3{letter-spacing:-.3px}
 @media(max-width:850px){.simple-page{padding:14px 13px 32px}.simple-header-inner{padding:14px 16px}.simple-tabs{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.simple-main{max-width:100%}}
 @media(max-width:480px){.simple-header-actions{width:100%;display:grid;grid-template-columns:1fr 1fr}.simple-action{padding:10px 8px;font-size:12px}.simple-logo{height:40px;width:40px;flex-basis:40px}.simple-tabs{gap:7px}.simple-tab{font-size:12px;padding:11px 6px;min-height:47px}}
+/* Claridad del periodo sin cambiar las secciones existentes. */
+.admin-period-header{background:#fff;border:1px solid #dfe6f1;border-radius:15px;padding:16px 18px;margin-bottom:14px;display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
+.admin-period-header strong{font-size:17px;color:#172f58;display:block}.admin-period-header small{display:block;color:#78869b;font-size:12px;margin-top:5px}
+.admin-month-nav{display:flex;gap:8px}.admin-month-nav button{border:1px solid #cfdaea;background:#fff;color:#172f58;border-radius:10px;min-height:40px;padding:9px 12px;font-size:12px;font-weight:750;cursor:pointer}.admin-month-nav button:disabled{opacity:.36;cursor:default}

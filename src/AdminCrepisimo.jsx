@@ -1,6 +1,7 @@
 import {apiFetch, rpc, freshId} from "./secureClient.jsx";
 import React, { useState, useEffect } from "react";
 import "./admin-theme.css";
+import CorteResumenAdmin from "./CorteResumenAdmin.jsx";
 
 // ═══ SUPABASE ════════════════════════════════════════════════════════
 var SB_URL = "https://ctsijalwjuzmingdxozi.supabase.co";
@@ -747,12 +748,19 @@ function ResumenTab(props) {
   }
 
   return re("div",null,
+    re("div",{className:"admin-period-header"},
+      re("div",null,re("strong",null,"Resumen mensual · "+mesNombres(mesSelec)),re("small",null,"Todas las sucursales · cifras de ventas y gastos del mes seleccionado")),
+      re("div",{className:"admin-month-nav"},
+        re("button",{onClick:mesPrev,type:"button"},"‹ Mes anterior"),
+        re("button",{onClick:mesNext,disabled:mesSelec>=mesActual,type:"button"},"Mes siguiente ›")
+      )
+    ),
     // KPIs globales
     re("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}},
-      Card("Ventas totales",fmt(tvAll),"#22c55e","#f0fdf4"),
+      Card("Ventas del mes",fmt(tvAll),"#22c55e","#f0fdf4"),
       Card("Egresos",fmt(tgAll),"#ef4444","#fff5f5"),
-      Card("Utilidad del mes",fmt(util),util>=0?"#7c3aed":"#ef4444",util>=0?"#f3e8ff":"#fff5f5"),
-      Card("Margen",margen,"#14b8a6","#f0fdfa")
+      Card("Ventas menos egresos",fmt(util),util>=0?"#7c3aed":"#ef4444",util>=0?"#f3e8ff":"#fff5f5"),
+      Card("Diferencia %",margen,"#14b8a6","#f0fdfa")
     ),
 
     // KPIs hoy
@@ -765,14 +773,16 @@ function ResumenTab(props) {
         ),
         re("div",{style:{textAlign:"center"}},
           re("div",{style:{fontSize:24,fontWeight:900,color:"#ef4444"}},fmt(tgHoy)),
-          re("div",{style:{fontSize:11,color:"#888"}},gHoy.length+" egresos")
+          re("div",{style:{fontSize:11,color:"#888"}},gHoy.filter(function(g){return egresoContable(g);}).length+" egresos")
         )
       )
     ),
 
+    re(CorteResumenAdmin,{ventas:ventas,gastos:gastos}),
+
     // Saldos
     re("div",{style:{background:"#fff",borderRadius:14,padding:16,marginBottom:14,boxShadow:"0 1px 6px rgba(0,0,0,.08)"}},
-      re("div",{style:{fontSize:12,fontWeight:800,color:"#888",textTransform:"uppercase",marginBottom:10}},"Saldos actuales"),
+      re("div",{style:{fontSize:12,fontWeight:800,color:"#888",textTransform:"uppercase",marginBottom:10}},"Saldos estimados (no conciliados)"),
       re("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}},
         re("div",{style:{background:"#f0fdf4",borderRadius:10,padding:10,textAlign:"center",cursor:"pointer"},onClick:function(){setEditSaldo(editSaldo==="efectivo"?null:"efectivo");setEditSaldoVal(String(Math.round(sEf)));}},
           re("div",{style:{fontSize:11,color:"#888",marginBottom:4}},"💵 Efectivo"),
