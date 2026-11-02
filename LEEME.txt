@@ -1,0 +1,24 @@
+CREPÍSIMO · ADMINISTRATIVO · REDISEÑO SENCILLO
+==============================================
+
+Esta entrega recupera la distribución conocida del administrativo:
+Resumen · Semanal · Productos · Gráficas · Ventas · Inventario · Egresos · Movimientos por empleado.
+
+Cambios visuales:
+- Fondo claro, encabezado azul marino y tarjetas más limpias.
+- Botones grandes, mayor legibilidad y secciones visibles sin barra horizontal.
+- Distribución adaptable a computadora y tablet.
+- Se retiraron el dashboard nuevo, menú lateral y filtros globales añadidos anteriormente.
+
+Se conservó la base de la corrección anterior de fechas y sumatorias dentro de las secciones originales.
+No se añadieron funciones nuevas, ni se alteraron la autenticación, los endpoints ni las operaciones de Supabase.
+
+INSTALACIÓN
+1. Guarda una copia del repositorio actual.
+2. Descomprime este archivo.
+3. Sube los archivos y carpetas internos a la RAÍZ del repositorio administrativo en GitHub.
+4. Confirma que Vercel haya compilado y publicado correctamente.
+5. Abre la app y revisa Resumen, Ventas, Inventario y Egresos antes de usarla de manera habitual.
+
+No hace falta ejecutar SQL.
+Esta entrega fue validada con revisión de sintaxis y estructura; no se ha probado contra tu base de datos real ni con un build Vite completo.

@@ -1834,119 +1834,6 @@ function HistorialEmpleados(){
 }
 
 
-// ═══ PANEL DE INICIO · VISTA LIMPIA SIN MODIFICAR LAS OPERACIONES ═══
-function DashboardHome(props){
-  var rango=props.rango||getRango("hoy");
-  var ventas=(props.ventas||[]).filter(function(v){return (props.tienda==='todas'||v.tienda===props.tienda)&&enRango(v.timestamp,rango.ini,rango.fin);});
-  var gastos=(props.gastos||[]).filter(function(g){return (props.tienda==='todas'||g.tienda===props.tienda)&&enRango(g.timestamp,rango.ini,rango.fin);});
-  var inv=props.inv||{};
-  var validado=rango.ini<=rango.fin;
-  var vigentes=ventas.filter(ventaVigente);
-  var reembolsadas=ventas.filter(function(v){return !ventaVigente(v);});
-  var egresos=gastos.filter(egresoContable);
-  var transferencias=gastos.filter(function(g){return g.tipo==='transf_tarjeta';});
-  var ventaBruta=totalDinero(vigentes,'total');
-  var gastosRegistrados=totalDinero(egresos,'monto');
-  var resultado=ventaBruta-gastosRegistrados;
-  var clip=vigentes.filter(function(v){return v.metodo==='clip';});
-  var brutoClip=totalDinero(clip,'total');
-  var comClip=totalDinero(clip,'comisionClip');
-  var netoClip=Math.round(clip.reduce(function(s,v){return s+importeNetoClip(v);},0)*100)/100;
-  var sinTerminal=clip.filter(function(v){return tarjetaDestinoClip(v)==='sin_terminal';});
-  var montoSinTerminal=Math.round(sinTerminal.reduce(function(s,v){return s+importeNetoClip(v);},0)*100)/100;
-  var devoluciones=totalDinero(reembolsadas,'total');
-  var insTodas=(props.tienda==='todas'?Object.keys(inv):[props.tienda]).reduce(function(arr,t){
-    var shop=TIENDAS.find(function(x){return x.id===t;});
-    return arr.concat((inv[t]||[]).map(function(i){return {nombre:i.nombre,tienda:shop?shop.nombre:t,stock:Number(i.stock)||0,minimo:Number(i.minimo)||0,unidad:i.unidad||''};}));
-  },[]);
-  var conStock=insTodas.filter(function(i){return i.stock>0;}).length;
-  var alertas=conStock?insTodas.filter(function(i){return i.minimo>0&&i.stock<=i.minimo;}).sort(function(a,b){return a.stock-b.stock;}).slice(0,5):[];
-  var dias=[];
-  if(validado){
-    var diaInicio=rango.ini;
-    var diaGraf=cambiarDiaLocal(rango.fin,-6);
-    if(diaGraf<diaInicio)diaGraf=diaInicio;
-    for(var k=diaGraf,i=0;k<=rango.fin&&i<7;k=cambiarDiaLocal(k,1),i++){
-      var porFecha=vigentes.filter(function(v){return fechaLocal(v.timestamp)===k;});
-      dias.push({k:k,l:etiquetaDia(k),v:totalDinero(porFecha,'total')});
-    }
-  }
-  var maxDia=Math.max.apply(null,[1].concat(dias.map(function(d){return d.v;})));
-  var porSucursal=TIENDAS.filter(function(t){return props.tienda==='todas'||t.id===props.tienda;}).map(function(t){
-    var rows=vigentes.filter(function(v){return v.tienda===t.id;});
-    return {id:t.id,nombre:t.nombre,emoji:t.emoji,cantidad:rows.length,total:totalDinero(rows,'total')};
-  });
-  var recientes=ventas.map(function(v){return {fecha:v.timestamp,titulo:ventaVigente(v)?'Venta':'Venta reembolsada',info:v.tienda+' · '+(v.metodo||'sin método'),monto:Number(v.total)||0,reembolso:!ventaVigente(v)};})
-    .concat(gastos.map(function(g){return {fecha:g.timestamp,titulo:g.tipo==='transf_tarjeta'?'Transferencia interna':g.tipo==='insumo'?'Compra de insumos':g.tipo==='ajuste_saldo'?'Ajuste de saldo':'Gasto',info:g.tienda+' · '+(g.desc||g.insumoNombre||'Movimiento'),monto:Number(g.monto)||0,egreso:egresoContable(g)};}))
-    .filter(function(x){return x.fecha;}).sort(function(a,b){return new Date(b.fecha)-new Date(a.fecha);}).slice(0,6);
-  function link(id,label){return re('button',{className:'admin-button-link',onClick:function(){props.onNavigate(id);}},label+' →');}
-  function section(titulo,contenido,accion){return re('section',{className:'admin-panel'},re('div',{className:'admin-section-head'},re('div',{className:'admin-section-title'},titulo),accion||null),contenido);}
-  function kpi(etiqueta,valor,descripcion,icon){return re('div',{className:'admin-kpi',key:etiqueta},
-    re('div',{className:'admin-kpi-top'},re('div',{className:'admin-kpi-name'},etiqueta),re('div',{className:'admin-kpi-ico'},icon)),
-    re('div',{className:'admin-kpi-value'},valor),re('div',{className:'admin-kpi-hint'},descripcion));}
-  return re('div',{className:'admin-dash'},
-    re('div',null,
-      re('div',{className:'admin-overline'},'Resumen por fecha de operación'),
-      re('div',{className:'admin-page-caption'},'Del '+etiquetaDia(rango.ini)+' al '+etiquetaDia(rango.fin)+' · Horario de Oaxaca · '+(props.tienda==='todas'?'Todas las sucursales':(TIENDAS.find(function(t){return t.id===props.tienda;})||{}).nombre)),
-      re('div',{className:'admin-page-caption'},'Los cuatro indicadores usan las mismas fechas y sucursal. Las ventas reembolsadas y las transferencias internas no se incluyen en los totales.')
-    ),
-    !validado?re('div',{className:'admin-panel',style:{color:C.red,fontWeight:800}},'La fecha inicial no puede ser posterior a la fecha final. Cambia el rango para mostrar los totales.'):
-    re(React.Fragment,null,
-      re('div',{className:'admin-kpis'},
-        kpi('Ventas netas de devoluciones',fmt(ventaBruta),vigentes.length+' ventas vigentes','▥'),
-        kpi('Compras y gastos registrados',fmt(gastosRegistrados),egresos.length+' registros','▤'),
-        kpi('Diferencia simple',fmt(resultado),'Ventas menos gastos; NO es utilidad contable','↗'),
-        kpi('Ticket promedio',fmt(vigentes.length?ventaBruta/vigentes.length:0),'Sobre '+vigentes.length+' ventas','◈')
-      ),
-      re('div',{className:'admin-mini-explain'},
-        re('span',null,'Reembolsos excluidos: '+reembolsadas.length+' ('+fmt(devoluciones)+')'),
-        re('span',null,'Transferencias internas excluidas: '+transferencias.length),
-        re('span',null,'Gastos sin sucursal: solo aparecen al elegir “Todas”')
-      ),
-      re('div',{className:'admin-two-col'},
-        section('Ventas por día · últimos 7 días del rango',
-          re('div',null,
-            re('div',{className:'admin-panel-sub'},'Fechas locales del negocio; sin ventas reembolsadas'),
-            dias.length?re('div',{className:'admin-bars'},dias.map(function(d){return re('div',{key:d.k,className:'admin-bar-col'},
-              re('div',{className:'admin-bar-val'},d.v?new Intl.NumberFormat('es-MX',{maximumFractionDigits:0}).format(d.v):'0'),
-              re('div',{className:'admin-bar-bg'},re('div',{className:'admin-bar-fill',style:{height:(d.v?Math.max(4,d.v/maxDia*100):0)+'%'}})),
-              re('div',{className:'admin-bar-label'},d.l));})):re('div',{className:'admin-empty'},'Sin días en el rango seleccionado')
-          ),link('ventas','Ver desglose de ventas')),
-        section('Clip · Ventas del periodo seleccionado',
-          re('div',null,
-            re('div',{className:'admin-panel-sub'},'La fecha usada es la de venta, no la del depósito bancario'),
-            re('div',{className:'admin-clip-summary'},
-              re('div',{className:'admin-clip-line'},re('span',null,'Ventas brutas Clip'),re('strong',null,fmt(brutoClip))),
-              re('div',{className:'admin-clip-line'},re('span',null,'Comisiones registradas'),re('strong',null,'− '+fmt(comClip))),
-              re('div',{className:'admin-clip-line admin-clip-total'},re('span',null,'Neto esperado Clip'),re('strong',null,fmt(netoClip)))
-            ),
-            re('div',{className:'admin-panel-sub',style:{marginTop:10}},'El neto esperado NO es el saldo bancario ni los depósitos recibidos.'),
-            sinTerminal.length?re('div',{style:{marginTop:12}},re('span',{className:'admin-chip warn'},'⚠ '+sinTerminal.length+' cobros sin terminal · '+fmt(montoSinTerminal))):
-              re('div',{style:{marginTop:12}},re('span',{className:'admin-chip good'},'Todas las ventas Clip tienen terminal asignada'))
-          ),link('finanzas','Ver saldos y finanzas'))
-      ),
-      re('div',{className:'admin-two-equal'},
-        section('Ventas por sucursal · periodo seleccionado',
-          re('div',null,porSucursal.map(function(t){return re('div',{key:t.id,className:'admin-info-row'},
-            re('div',null,re('div',{className:'admin-info-primary'},t.emoji+' '+t.nombre),re('div',{className:'admin-info-sub'},t.cantidad+' ventas vigentes')),
-            re('div',{className:'admin-info-value'},fmt(t.total)));})),link('ventas','Consultar ventas')),
-        section('Inventario · Existencias actuales',
-          !conStock?re('div',{className:'admin-empty'},'No hay existencias positivas cargadas. Completa los conteos físicos para obtener alertas confiables.'):
-            alertas.length===0?re('div',{className:'admin-empty'},'Sin artículos por debajo del mínimo configurado.'):
-            re('div',null,alertas.map(function(i,idx){return re('div',{key:idx,className:'admin-info-row'},
-              re('div',null,re('div',{className:'admin-info-primary'},i.nombre),re('div',{className:'admin-info-sub'},i.tienda)),
-              re('span',{className:'admin-chip '+(i.stock<=0?'critical':'warn')},i.stock+' '+i.unidad));})),link('inventario','Abrir inventario'))
-      ),
-      section('Últimos movimientos del periodo',
-        recientes.length?re('div',null,recientes.map(function(x,i){return re('div',{className:'admin-info-row',key:i},
-          re('div',null,re('div',{className:'admin-info-primary'},x.titulo),re('div',{className:'admin-info-sub'},(x.info||'')+' · '+fmtFecha(x.fecha))),
-          re('div',{className:'admin-info-value',style:{color:x.egreso?'#aa4d42':'#1c3764'}},
-            x.reembolso?'Excluida':x.egreso?'− '+fmt(x.monto):fmt(x.monto))
-        );})):re('div',{className:'admin-empty'},'No hay movimientos en el periodo seleccionado.'),link('historial','Movimientos por empleado'))
-    )
-  );
-}
-
 // ═══ ADMIN APP ══════════════════════════════════════════════════════
 
 // ═══ ADMIN APP ════════════════════════════════════════════════════
@@ -1961,13 +1848,6 @@ export default function AdminApp() {
   var st8=useState([]);    var ventas=st8[0];   var setVentas=st8[1];
   var st9=useState({centro:[],sanantonio:[],amburger:[],tichi:[]});
   var inv=st9[0]; var setInv=st9[1];
-  // El rango es único para Dashboard, Ventas y Compras/Gastos.
-  var stPeriodo=useState('hoy');var periodoGlobal=stPeriodo[0];var setPeriodoGlobal=stPeriodo[1];
-  var stIni=useState(hoyStr());var fechaIniGlobal=stIni[0];var setFechaIniGlobal=stIni[1];
-  var stFin=useState(hoyStr());var fechaFinGlobal=stFin[0];var setFechaFinGlobal=stFin[1];
-  var rangoGlobal=getRango(periodoGlobal,fechaIniGlobal,fechaFinGlobal);
-
-
   function mkIns(base){return base.map(function(i){return Object.assign({},i,{stock:0});});}
 
   useEffect(function(){
@@ -2053,83 +1933,51 @@ export default function AdminApp() {
   );
   if(error) return re("div",{style:{padding:24,color:C.red,textAlign:"center",fontSize:16}},error);
 
-  var NAV=[
-    ['resumen','▦','Inicio'],
-    ['ventas','▤','Ventas'],
-    ['inventario','▣','Inventario'],
-    ['egresos','◧','Compras y gastos'],
-    ['finanzas','▥','Finanzas y Clip'],
-    ['historial','♙','Empleados y movimientos'],
-    ['semana','▧','Resumen semanal'],
-    ['productos','✦','Productos'],
-    ['graficas','↗','Gráficas']
+  // La navegación y las secciones son las mismas que el administrativo original.
+  var TABS=[
+    ['resumen','📊 Resumen'],
+    ['semana','📅 Semanal'],
+    ['productos','🏆 Productos'],
+    ['graficas','📈 Gráficas'],
+    ['ventas','💰 Ventas'],
+    ['inventario','📦 Inventario'],
+    ['egresos','💸 Egresos'],
+    ['historial','👥 Movimientos por empleado']
   ];
-  var PAGE_META={
-    resumen:['Dashboard','Tu negocio de un vistazo, sin información innecesaria.'],
-    ventas:['Ventas','Consulta el historial de operaciones por sucursal.'],
-    inventario:['Inventario','Existencias, ajustes y control de insumos.'],
-    egresos:['Compras y gastos','Registra y revisa los movimientos de salida.'],
-    finanzas:['Finanzas y saldos de Clip','Detalle de saldos, comisiones y resultados registrados.'],
-    historial:['Movimientos por empleado','Identifica quién realizó cada operación.'],
-    semana:['Resumen semanal','Revisa el desempeño de cada semana.'],
-    productos:['Productos','Analiza el comportamiento de tu menú.'],
-    graficas:['Gráficas','Visualiza las tendencias de venta.']
-  };
-  var pm=PAGE_META[tab]||PAGE_META.resumen;
-  return re('div',{className:'admin-app'},
-    re('div',{className:'admin-layout'},
-      re('aside',{className:'admin-sidebar'},
-        re('div',{className:'admin-logo'},
-          re('div',{className:'admin-logo-icon'},'C'),
-          re('div',null,re('div',{className:'admin-brand-name'},'Crepísimo'),
-            re('div',{className:'admin-brand-sub'},'Panel administrativo'))),
-        re('div',{className:'admin-nav-label'},'GESTIÓN DEL NEGOCIO'),
-        re('nav',{className:'admin-nav','aria-label':'Secciones del administrativo'},
-          NAV.map(function(it){return re('button',{key:it[0],type:'button',className:'admin-nav-btn'+(tab===it[0]?' active':''),
-            onClick:function(){setTab(it[0]);},'aria-current':tab===it[0]?'page':undefined},
-            re('span',{className:'admin-nav-icon','aria-hidden':'true'},it[1]),re('span',null,it[2]));})
-        ),
-        re('div',{className:'admin-sidebar-footer'},
-          re('div',{style:{fontWeight:850,color:'#e4eeff'}},'● Sistema interno'),
-          re('div',null,'La información se obtiene de Supabase.'))
-      ),
-      re('main',{className:'admin-main'},
-        re('header',{className:'admin-topbar'},
-          re('div',null,re('h1',{className:'admin-page-title'},pm[0]),re('p',{className:'admin-page-desc'},pm[1])),
-          re('div',{className:'admin-top-actions'},
-            (tab==='resumen'||tab==='ventas'||tab==='egresos')?re('select',{className:'admin-select',value:tiendaSel,onChange:function(e){setTiendaSel(e.target.value);},'aria-label':'Filtrar sucursal'},
-              re('option',{value:'todas'},'Todas las sucursales'),TIENDAS.map(function(t){return re('option',{key:t.id,value:t.id},t.nombre);})):null,
-            re('button',{className:'admin-action',onClick:function(){setModalTransf(true);},type:'button'},'⇄ Transferencia'),
-            re('button',{className:'admin-action primary',onClick:function(){setModalEgr(true);},type:'button'},'+ Registrar gasto')
+
+  return re('div',{className:'admin-simple'},
+    re('header',{className:'simple-header'},
+      re('div',{className:'simple-header-inner'},
+        re('div',{className:'simple-header-title'},
+          re('div',{className:'simple-logo'},'C'),
+          re('div',null,
+            re('div',{className:'simple-brand'},'Crepísimo'),
+            re('div',{className:'simple-tagline'},'Administración')
           )
         ),
-        (tab==='resumen'||tab==='ventas'||tab==='egresos')?re('div',{className:'admin-date-toolbar'},
-          re('label',{className:'admin-date-label'},'PERIODO'),
-          re('select',{className:'admin-select',value:periodoGlobal,onChange:function(e){setPeriodoGlobal(e.target.value);},'aria-label':'Periodo de reporte'},
-            [['hoy','Hoy'],['ayer','Ayer'],['7dias','Últimos 7 días'],['semana','Esta semana'],['mes','Este mes'],['mes_anterior','Mes anterior'],['custom','Elegir fechas']].map(function(x){return re('option',{key:x[0],value:x[0]},x[1]);})),
-          periodoGlobal==='custom'?re(React.Fragment,null,
-            re('label',{className:'admin-date-label'},'DESDE'),
-            re('input',{type:'date',className:'admin-date-input',value:fechaIniGlobal,onChange:function(e){setFechaIniGlobal(e.target.value);},'aria-label':'Fecha inicial'}),
-            re('label',{className:'admin-date-label'},'HASTA'),
-            re('input',{type:'date',className:'admin-date-input',value:fechaFinGlobal,onChange:function(e){setFechaFinGlobal(e.target.value);},'aria-label':'Fecha final'})):
-            re('div',{className:'admin-date-range'},'Del '+etiquetaDia(rangoGlobal.ini)+' al '+etiquetaDia(rangoGlobal.fin)),
-          re('div',{className:'admin-date-zone'},'Horario Oaxaca · fechas incluidas'),
-          re('button',{type:'button',className:'admin-action',onClick:function(){window.location.reload();}},'↻ Actualizar datos')
-        ):null,
-        re('div',{className:'admin-content'},
-          rangoGlobal.ini>rangoGlobal.fin?re('div',{className:'admin-date-invalid'},'La fecha inicial es posterior a la fecha final. Corrige el periodo para ver datos válidos.'):null,
-          tab==='resumen'?re(DashboardHome,{ventas:ventas,gastos:gastos,inv:inv,tienda:tiendaSel,rango:rangoGlobal,onNavigate:setTab}):null,
-          tab==='semana'?re('div',{className:'admin-legacy'},re(SemanaTab,{ventas:ventas,gastos:gastos})):null,
-          tab==='productos'?re('div',{className:'admin-legacy'},re(ProductosTab,{ventas:ventas})):null,
-          tab==='graficas'?re('div',{className:'admin-legacy'},re(GraficasTab,{ventas:ventas})):null,
-          tab==='ventas'?re('div',{className:'admin-legacy'},re(VentasAdmin,{ventas:ventas,tiendaId:tiendaSel,onTiendaChange:setTiendaSel,rango:rangoGlobal})):null,
-          tab==='inventario'?re('div',{className:'admin-legacy'},re(InventarioAdmin,{datos:inv,onUpdate:handleUpdate,onRefresh:actualizarInventarioAdmin})):null,
-          tab==='egresos'?re('div',{className:'admin-legacy'},re(EgresosAdmin,{gastos:gastos,ventas:ventas,tiendaId:tiendaSel,rango:rangoGlobal,onEditar:editarGasto,onEliminar:eliminarGasto})):null,
-          tab==='historial'?re('div',{className:'admin-legacy'},re(HistorialEmpleados)):null,
-          tab==='finanzas'?re('div',null,
-            re('div',{className:'admin-mini-explain'},'Finanzas y saldos utiliza su propio selector de mes; los saldos son estimaciones a partir de movimientos registrados, no depósitos bancarios conciliados.'),
-            re('div',{className:'admin-legacy'},re(ResumenTab,{ventas:ventas,gastos:gastos,inv:inv,tiendas:TIENDAS,onAgregarGasto:agregarGasto}))):null
+        re('div',{className:'simple-header-actions'},
+          re('button',{type:'button',className:'simple-action simple-action-secondary',onClick:function(){setModalTransf(true);}},'↔ Transferencia'),
+          re('button',{type:'button',className:'simple-action simple-action-primary',onClick:function(){setModalEgr(true);}},'+ Registrar egreso')
         )
+      )
+    ),
+    re('div',{className:'simple-page'},
+      re('nav',{className:'simple-tabs','aria-label':'Secciones del administrativo'},
+        TABS.map(function(t){var active=tab===t[0];return re('button',{
+          key:t[0],type:'button',className:'simple-tab'+(active?' active':''),
+          'aria-current':active?'page':undefined,
+          onClick:function(){setTab(t[0]);}
+        },t[1]);})
+      ),
+      re('main',{className:'simple-main'},
+        tab==='resumen'?re(ResumenTab,{ventas:ventas,gastos:gastos,inv:inv,tiendas:TIENDAS,onAgregarGasto:agregarGasto}):null,
+        tab==='semana'?re(SemanaTab,{ventas:ventas,gastos:gastos}):null,
+        tab==='productos'?re(ProductosTab,{ventas:ventas}):null,
+        tab==='graficas'?re(GraficasTab,{ventas:ventas}):null,
+        tab==='ventas'?re(VentasAdmin,{ventas:ventas,tiendaId:tiendaSel,onTiendaChange:setTiendaSel}):null,
+        tab==='inventario'?re(InventarioAdmin,{datos:inv,onUpdate:handleUpdate,onRefresh:actualizarInventarioAdmin}):null,
+        tab==='egresos'?re(EgresosAdmin,{gastos:gastos,ventas:ventas,onEditar:editarGasto,onEliminar:eliminarGasto}):null,
+        tab==='historial'?re(HistorialEmpleados):null
       )
     ),
     modalEgr?re(ModalEgreso,{onSave:agregarGasto,onClose:function(){setModalEgr(false);},insPorTienda:insPorTienda}):null,
