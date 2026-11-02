@@ -750,28 +750,16 @@ function ResumenTab(props) {
   }
 
   return re("div",null,
-    re("div",{className:"admin-period-header"},
-      re("div",null,re("strong",null,"Resumen mensual · "+mesNombres(mesSelec)),re("small",null,"Todas las sucursales · cifras de ventas y gastos del mes seleccionado")),
-      re("div",{className:"admin-month-nav"},
-        re("button",{onClick:mesPrev,type:"button"},"‹ Mes anterior"),
-        re("button",{onClick:mesNext,disabled:mesSelec>=mesActual,type:"button"},"Mes siguiente ›")
-      )
-    ),
-    // KPIs globales
-    re("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}},
-      Card("Ventas del mes",fmt(tvAll),"#22c55e","#f0fdf4"),
-      Card("Egresos",fmt(tgAll),"#ef4444","#fff5f5"),
-      Card("Ventas menos egresos",fmt(util),util>=0?"#7c3aed":"#ef4444",util>=0?"#f3e8ff":"#fff5f5"),
-      Card("Diferencia %",margen,"#14b8a6","#f0fdfa")
-    ),
-
     // KPIs hoy
     re("div",{style:{background:"#fff",borderRadius:14,padding:16,marginBottom:14,boxShadow:"0 1px 6px rgba(0,0,0,.08)"}},
       re("div",{style:{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:10}},
         re("div",{style:{fontSize:12,fontWeight:800,color:"#888",textTransform:"uppercase"}},"Ventas y gastos · "+fechaDia+" · todas las sucursales"),
+        re("input",{type:"date",value:fechaDia,max:hoyStr(),onChange:function(e){if(e.target.value)setFechaDia(e.target.value);},style:{padding:"7px",borderRadius:8,border:"1px solid #d0d9e9",fontWeight:700,color:"#172F58"},"aria-label":"Fecha única de resumen y corte"}),
+        re("button",{type:"button",onClick:props.onActualizarMovimientos,style:{padding:"7px 12px",borderRadius:8,border:"1px solid #d0d9e9",background:"#fff",color:"#172F58",cursor:"pointer",fontWeight:700}},"↻ Actualizar ventas"),
         re("button",{type:"button",onClick:function(){setFechaDia(hoyStr());},style:{marginLeft:"auto",padding:"6px 12px",borderRadius:8,border:"1px solid #d0d9e9",background:fechaDia===hoyStr()?"#172F58":"#fff",color:fechaDia===hoyStr()?"#fff":"#172F58",cursor:"pointer",fontWeight:700}},"Hoy"),
         re("button",{type:"button",onClick:function(){setFechaDia(cambiarDiaLocal(hoyStr(),-1));},style:{padding:"6px 12px",borderRadius:8,border:"1px solid #d0d9e9",background:fechaDia===cambiarDiaLocal(hoyStr(),-1)?"#172F58":"#fff",color:fechaDia===cambiarDiaLocal(hoyStr(),-1)?"#fff":"#172F58",cursor:"pointer",fontWeight:700}},"Ayer")
       ),
+      re("p",{style:{fontSize:12,color:"#64748b",margin:"0 0 10px"}},"Todas las cifras de este bloque corresponden SOLO al "+fechaDia+". El corte por sucursal usa esta misma fecha."),
       re("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}},
         re("div",{style:{textAlign:"center"}},
           re("div",{style:{fontSize:24,fontWeight:900,color:"#22c55e"}},fmt(tvHoy)),
@@ -784,7 +772,26 @@ function ResumenTab(props) {
       )
     ),
 
-    re(CorteResumenAdmin,{ventas:ventas,gastos:gastos}),
+    re("details",{style:{background:"#fff",border:"1px solid #e4eaf3",borderRadius:12,padding:"12px 16px",marginBottom:14}},
+      re("summary",{style:{fontSize:14,fontWeight:800,cursor:"pointer",color:"#172F58"}},"Ver las "+vHoy.length+" ventas que forman el total del "+fechaDia+" ("+fmt(tvHoy)+")"),
+      vHoy.length?re("div",{style:{maxHeight:250,overflowY:"auto",marginTop:12}},vHoy.map(function(v,i){return re("div",{key:v._dbId||v.timestamp+"-"+i,style:{display:"flex",justifyContent:"space-between",gap:8,padding:"6px 0",borderBottom:"1px solid #edf1f6",fontSize:12}},re("span",null,fmtFecha(v.timestamp)+" · "+v.tienda+" · "+(v.metodo||"")),re("strong",null,fmt(v.total)));})):re("p",{style:{fontSize:13,color:"#6b7280"}},"Sin ventas para esta fecha.")),
+
+    re(CorteResumenAdmin,{ventas:ventas,gastos:gastos,fechaSeleccionada:fechaDia,onFechaSeleccionada:setFechaDia}),
+
+    re("div",{className:"admin-period-header"},
+      re("div",null,re("strong",null,"Periodo mensual separado · "+mesNombres(mesSelec)),re("small",null,"NO es el total de hoy ni de ayer · cifras acumuladas exclusivamente del mes seleccionado")),
+      re("div",{className:"admin-month-nav"},
+        re("button",{onClick:mesPrev,type:"button"},"‹ Mes anterior"),
+        re("button",{onClick:mesNext,disabled:mesSelec>=mesActual,type:"button"},"Mes siguiente ›")
+      )
+    ),
+    // KPIs globales
+    re("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}},
+      Card("Ventas del mes",fmt(tvAll),"#22c55e","#f0fdf4"),
+      Card("Egresos",fmt(tgAll),"#ef4444","#fff5f5"),
+      Card("Ventas menos egresos",fmt(util),util>=0?"#7c3aed":"#ef4444",util>=0?"#f3e8ff":"#fff5f5"),
+      Card("Diferencia %",margen,"#14b8a6","#f0fdfa")
+    ),
 
     // Saldos
     re("div",{style:{background:"#fff",borderRadius:14,padding:16,marginBottom:14,boxShadow:"0 1px 6px rgba(0,0,0,.08)"}},
@@ -1897,6 +1904,13 @@ export default function AdminApp() {
     })();
   },[]);
 
+  async function actualizarMovimientosAdmin(){
+    try{
+      var [rawV,rawG]=await Promise.all([fetchAll('ventas','select=*&order=timestamp.desc'),fetchAll('gastos','select=*&order=timestamp.desc')]);
+      setVentas(rawV.map(function(v){return {timestamp:v.timestamp,tienda:v.tienda,total:Number(v.total)||0,metodo:v.metodo||'efectivo',comisionClip:Number(v.comision_clip)||0,comisionDidi:Number(v.comision_didi)||0,items:v.items||[],estadoPago:v.estado_pago||'pagado',terminalClip:v.terminal_clip||'',netoRecibido:v.neto_recibido==null?null:Number(v.neto_recibido)};}));
+      setGastos(rawG.map(function(g){return {_dbId:g.id,timestamp:g.timestamp,tienda:g.tienda,seccion:g.seccion,tipo:g.tipo,monto:Number(g.monto)||0,desc:g.desc_gasto||'',insumoId:g.insumo_id||'',insumoNombre:g.insumo_nombre||'',cantidad:g.cantidad||0,unidad:g.unidad||'',metodoPago:g.metodo_pago||''};}));
+    }catch(e){window.alert('No se pudieron actualizar las ventas: '+e.message);}
+  }
   async function actualizarInventarioAdmin(){
     try{
       var [rawI,rawC]=await Promise.all([sbGet('inventario','select=*'),sbGet('app_catalogo_insumos','select=*').catch(function(){return [];})]);
@@ -1986,7 +2000,7 @@ export default function AdminApp() {
         },t[1]);})
       ),
       re('main',{className:'simple-main'},
-        tab==='resumen'?re(ResumenTab,{ventas:ventas,gastos:gastos,inv:inv,tiendas:TIENDAS,onAgregarGasto:agregarGasto}):null,
+        tab==='resumen'?re(ResumenTab,{ventas:ventas,gastos:gastos,inv:inv,tiendas:TIENDAS,onAgregarGasto:agregarGasto,onActualizarMovimientos:actualizarMovimientosAdmin}):null,
         tab==='semana'?re(SemanaTab,{ventas:ventas,gastos:gastos}):null,
         tab==='productos'?re(ProductosTab,{ventas:ventas}):null,
         tab==='graficas'?re(GraficasTab,{ventas:ventas}):null,

@@ -1,0 +1,53 @@
+CORRECCION DIRIGIDA: 1 Y 2 DE NOVIEMBRE - POS Y ADMIN
+Version preparada: 2026-11-02
+
+PROBLEMA CONFIRMADO EN EL CODIGO:
+- La pantalla Pedidos y el resumen del POS tenían fechas de consulta independientes.
+- En el administrador el resumen diario y el detalle de corte también mantenían fechas separadas.
+- El administrador mezclaba visualmente tarjetas acumuladas mensuales con las diarias.
+- Ambos proyectos leían las ventas solamente al cargar: otros dispositivos podían haber hecho ventas después.
+
+CAMBIOS:
+POS (Crepísimo Centro / San Antonio, AM-Burgers, Tichi):
+- Fecha de consulta compartida entre Vender, Pedidos y Corte por sucursal.
+- Hoy / Ayer / fecha manual en la barra superior (no altera la fecha real de nuevos cobros).
+- Botón "Actualizar ventas" para refrescar pedidos y gastos desde Supabase.
+- Se pagina el historial de ventas y gastos para evitar límites de lectura de 1000 filas.
+- El corte puede desplegar cada venta incluida en la suma del día.
+
+ADMINISTRATIVO:
+- La consulta diaria aparece antes de los acumulados mensuales.
+- Resumen diario y Corte por sucursal comparten la misma fecha.
+- Se puede elegir cualquier fecha o tocar Hoy/Ayer y actualizar ventas desde Supabase.
+- "Ver las N ventas" despliega cada operación que forma la suma del día.
+- Las cifras mensuales continúan disponibles pero están claramente etiquetadas aparte.
+
+NO SE MODIFICA:
+- Base de datos, tablas ni SQL.
+- Fechas ni importes de ventas ya registradas.
+- RPC de registrar ventas/gastos, PIN, auth, inventario ni comisiones.
+- Cobro, modal de Clip, reembolsos, impresora y procesos propios por marca.
+
+PRUEBAS QUE SE COMPLETARON:
+- 26 pruebas unitarias en datos simulados para zona horaria, 1 y 2 de noviembre,
+  reembolsos, cuatro sucursales y métodos de gasto.
+- Prueba de integración existente de las tres marcas: interfaces y venta simulada.
+- Revisión sintáctica de los archivos JavaScript modificados.
+
+LIMITACIONES:
+- No fue posible ejecutar el build completo con Vite porque el entorno no tiene
+  sus dependencias descargables; se debe verificar el build en Vercel.
+- No se pudo acceder a los datos privados de Supabase para comparar cantidades reales.
+- Los movimientos no se actualizan solos en otras sesiones: usa "Actualizar ventas"
+  antes de comparar las cifras.
+
+INSTALACION SEGURA:
+1. Crear rama de prueba en CADA repositorio (POS y administrativo).
+2. Descomprimir el ZIP correspondiente y subir su contenido a la raiz del repositorio.
+3. Confirmar build Ready en Vercel previews.
+4. Elegir 2026-11-01, tocar Actualizar ventas, y comparar lista de Pedidos vs
+   el total diario (abre "Ver ventas incluidas"). Repetir para 2026-11-02.
+5. Probar una sucursal de cada negocio y una venta nueva.
+6. Solo mover a produccion tras confirmar que las sumatorias coinciden.
+
+No ejecutar nuevo SQL.

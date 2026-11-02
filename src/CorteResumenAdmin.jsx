@@ -5,9 +5,11 @@ const e=React.createElement;
 const formato=n=>new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(Number(n)||0);
 const comercios=[['centro','Crepísimo Centro'],['sanantonio','Crepísimo San Antonio'],['amburger','AM-Burgers'],['tichi','Tichi']];
 const medios={efectivo:'Efectivo',tarjeta:'Tarjeta',transferencia:'Transferencia',sin_especificar:'Sin especificar',otro:'Otro'};
-export default function CorteResumenAdmin({ventas=[],gastos=[]}){
+export default function CorteResumenAdmin({ventas=[],gastos=[],fechaSeleccionada,onFechaSeleccionada}){
   const [tienda,setTienda]=useState('centro');
-  const [fecha,setFecha]=useState(fechaCaja(new Date()));
+  const [fechaInterna,setFechaInterna]=useState(fechaCaja(new Date()));
+  const fecha=fechaSeleccionada||fechaInterna;
+  const setFecha=onFechaSeleccionada||setFechaInterna;
   const hoyRef=useRef(fechaCaja(new Date()));
   useEffect(()=>{
     const revisar=()=>{
