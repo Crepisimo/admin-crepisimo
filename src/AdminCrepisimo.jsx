@@ -1,5 +1,6 @@
 import {apiFetch, rpc, freshId} from "./secureClient.jsx";
 import React, { useState, useEffect } from "react";
+import "./admin-theme.css";
 
 // ═══ SUPABASE ════════════════════════════════════════════════════════
 var SB_URL = "https://ctsijalwjuzmingdxozi.supabase.co";
@@ -72,16 +73,16 @@ function getRango(periodo,fechaIni,fechaFin) {
 }
 
 var C={
-  dark:"#7936AD",
-  green:"#E172B3",greenL:"#FFD9EE",
-  teal:"#52ABD8",tealL:"#E1F8FF",
+  dark:"#172F58",
+  green:"#23825E",greenL:"#E9F7F0",
+  teal:"#386DAD",tealL:"#EAF2FD",
   orange:"#D34633",
   red:"#D34633",redL:"#FFDCDC",
-  purple:"#7936AD",purpleL:"#EFE3FF",
-  indigo:"#52ABD8",indigoL:"#C3E9FC",
+  purple:"#172F58",purpleL:"#EDF3FC",
+  indigo:"#386DAD",indigoL:"#E4EEFC",
   amber:"#EFC42E",amberL:"#FFF2CF",
   white:"#ffffff",slate:"#2E4057",
-  blue:"#52ABD8",blueL:"#E1F8FF",
+  blue:"#386DAD",blueL:"#EAF2FD",
 };
 var OV = {position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16};
 var MD = {background:"#fff",borderRadius:18,padding:24,width:"100%",maxWidth:480,maxHeight:"90vh",overflowY:"auto"};
@@ -680,7 +681,7 @@ function ResumenTab(props) {
     });
   });
 
-  var PURP="#7c3aed";
+  var PURP="#172F58";
   function Card(label,val,col,bg){
     return re("div",{style:{background:bg,borderRadius:12,padding:14,borderLeft:"4px solid "+col}},
       re("div",{style:{fontSize:11,color:col,fontWeight:700,textTransform:"uppercase",marginBottom:4}},label),
@@ -1777,6 +1778,116 @@ function HistorialEmpleados(){
   );
 }
 
+
+// ═══ PANEL DE INICIO · VISTA LIMPIA SIN MODIFICAR LAS OPERACIONES ═══
+function DashboardHome(props){
+  var ventas=(props.ventas||[]).filter(function(v){return props.tienda==='todas'||v.tienda===props.tienda;});
+  var gastos=(props.gastos||[]).filter(function(g){return props.tienda==='todas'||g.tienda===props.tienda;});
+  var inv=props.inv||{};
+  var hoy=hoyStr(),mes=hoy.slice(0,7);
+  var vigentes=ventas.filter(function(v){return v.estadoPago!=='reembolsado';});
+  var vendidasHoy=vigentes.filter(function(v){return enRango(v.timestamp,hoy,hoy);});
+  var vendidasMes=vigentes.filter(function(v){return v.timestamp&&v.timestamp.slice(0,7)===mes;});
+  var gastosMes=gastos.filter(function(g){return g.timestamp&&g.timestamp.slice(0,7)===mes&&g.tipo!=='transf_tarjeta'&&g.tipo!=='ajuste_saldo';});
+  var vDia=vendidasHoy.reduce(function(s,v){return s+(Number(v.total)||0);},0);
+  var vMes=vendidasMes.reduce(function(s,v){return s+(Number(v.total)||0);},0);
+  var gMes=gastosMes.reduce(function(s,g){return s+(Number(g.monto)||0);},0);
+  var clip=vendidasMes.filter(function(v){return v.metodo==='clip';});
+  var brutoClip=clip.reduce(function(s,v){return s+(Number(v.total)||0);},0);
+  var comClip=clip.reduce(function(s,v){return s+(Number(v.comisionClip)||0);},0);
+  var netoClip=clip.reduce(function(s,v){return s+importeNetoClip(v);},0);
+  var sinTerminal=clip.filter(function(v){return tarjetaDestinoClip(v)==='sin_terminal';});
+  var montoSinTerminal=sinTerminal.reduce(function(s,v){return s+importeNetoClip(v);},0);
+  var allIns=(props.tienda==='todas'?Object.keys(inv):[props.tienda]).reduce(function(arr,t){
+    var shop=TIENDAS.find(function(x){return x.id===t;});
+    return arr.concat((inv[t]||[]).map(function(i){return {nombre:i.nombre,tienda:shop?shop.nombre:t,stock:Number(i.stock)||0,minimo:Number(i.minimo)||0,unidad:i.unidad||''};}));
+  },[]);
+  var conStock=allIns.filter(function(i){return i.stock>0;}).length;
+  var alertas=conStock?allIns.filter(function(i){return i.minimo>0&&i.stock<=i.minimo;}).sort(function(a,b){return a.stock-b.stock;}).slice(0,5):[];
+  var dias=[];
+  for(var n=6;n>=0;n--){
+    var fecha=new Date();fecha.setHours(12,0,0,0);fecha.setDate(fecha.getDate()-n);
+    var k=fecha.getFullYear()+'-'+String(fecha.getMonth()+1).padStart(2,'0')+'-'+String(fecha.getDate()).padStart(2,'0');
+    dias.push({k:k,l:fecha.toLocaleDateString('es-MX',{weekday:'short'}).replace('.',''),v:vigentes.filter(function(x){return enRango(x.timestamp,k,k);}).reduce(function(s,x){return s+(Number(x.total)||0);},0)});
+  }
+  var maxDia=Math.max.apply(null,[1].concat(dias.map(function(d){return d.v;})));
+  var recientes=ventas.map(function(v){return {fecha:v.timestamp,titulo:'Venta',info:v.tienda+' · '+(v.metodo||'sin método'),monto:Number(v.total)||0};})
+    .concat(gastos.filter(function(g){return g.tipo!=='ajuste_saldo';}).map(function(g){return {fecha:g.timestamp,titulo:g.tipo==='insumo'?'Compra de insumos':'Egreso',info:g.tienda+' · '+(g.desc||g.insumoNombre||'Movimiento'),monto:-(Number(g.monto)||0)};}))
+    .filter(function(x){return x.fecha;}).sort(function(a,b){return new Date(b.fecha)-new Date(a.fecha);}).slice(0,5);
+  function link(id,label){return re('button',{className:'admin-button-link',onClick:function(){props.onNavigate(id);}},label+' →');}
+  function section(titulo,contenido,accion){return re('section',{className:'admin-panel'},
+    re('div',{className:'admin-section-head'},re('div',{className:'admin-section-title'},titulo),accion||null),contenido);
+  }
+  function kpi(etiqueta,valor,descripcion,icon){return re('div',{className:'admin-kpi',key:etiqueta},
+    re('div',{className:'admin-kpi-top'},re('div',{className:'admin-kpi-name'},etiqueta),re('div',{className:'admin-kpi-ico'},icon)),
+    re('div',{className:'admin-kpi-value'},valor),re('div',{className:'admin-kpi-hint'},descripcion));}
+  return re('div',{className:'admin-dash'},
+    re('div',null,re('div',{className:'admin-overline'},'Vista general'),
+      re('div',{className:'admin-page-caption'},props.tienda==='todas'?'Indicadores de todas tus sucursales':'Indicadores de '+(TIENDAS.find(function(t){return t.id===props.tienda;})||{}).nombre+'.')
+    ),
+    re('div',{className:'admin-kpis'},
+      kpi('Ventas de hoy',fmt(vDia),vendidasHoy.length+' operaciones','💳'),
+      kpi('Ventas del mes',fmt(vMes),'Ventas vigentes registradas','↗'),
+      kpi('Egresos del mes',fmt(gMes),gastosMes.length+' movimientos','🧾'),
+      kpi('Resultado estimado',fmt(vMes-gMes),'Ventas menos egresos registrados','◈')
+    ),
+    re('div',{className:'admin-two-col'},
+      section('Ventas de los últimos 7 días',
+        re('div',null,
+          re('div',{className:'admin-panel-sub'},'Importes diarios de ventas vigentes'),
+          re('div',{className:'admin-bars'},dias.map(function(d){return re('div',{key:d.k,className:'admin-bar-col'},
+            re('div',{className:'admin-bar-val'},d.v?new Intl.NumberFormat('es-MX',{maximumFractionDigits:0}).format(d.v):'0'),
+            re('div',{className:'admin-bar-bg'},re('div',{className:'admin-bar-fill',style:{height:(d.v?Math.max(4,d.v/maxDia*100):0)+'%'}})),
+            re('div',{className:'admin-bar-label'},d.l));}))
+        ),link('graficas','Ver gráficas')),
+      section('Saldos de Clip · Este mes',
+        re('div',null,
+          re('div',{className:'admin-panel-sub'},'Importes registrados, pendientes de conciliar con depósitos reales'),
+          re('div',{className:'admin-clip-summary'},
+            re('div',{className:'admin-clip-line'},re('span',null,'Ventas brutas'),re('strong',null,fmt(brutoClip))),
+            re('div',{className:'admin-clip-line'},re('span',null,'Comisiones registradas'),re('strong',null,'− '+fmt(comClip))),
+            re('div',{className:'admin-clip-line admin-clip-total'},re('span',null,'Neto estimado'),re('strong',null,fmt(netoClip)))
+          ),
+          sinTerminal.length?re('div',{style:{marginTop:12}},re('span',{className:'admin-chip warn'},'⚠ '+sinTerminal.length+' cobros sin terminal · '+fmt(montoSinTerminal))):
+            re('div',{style:{marginTop:12}},re('span',{className:'admin-chip good'},'Sin cobros sin terminal este mes'))
+        ),link('finanzas','Ver saldos y finanzas'))
+    ),
+    re('div',{className:'admin-two-equal'},
+      section('Ventas por sucursal · Hoy',
+        re('div',null,TIENDAS.filter(function(t){return props.tienda==='todas'||t.id===props.tienda;}).map(function(t){
+          var info=vendidasHoy.filter(function(v){return v.tienda===t.id;});
+          return re('div',{key:t.id,className:'admin-info-row'},re('div',null,
+            re('div',{className:'admin-info-primary'},t.emoji+' '+t.nombre),
+            re('div',{className:'admin-info-sub'},info.length+' operaciones')),
+            re('div',{className:'admin-info-value'},fmt(info.reduce(function(s,v){return s+(Number(v.total)||0);},0))));}))
+        ,link('ventas','Consultar ventas')),
+      section('Inventario · Alertas',
+        !conStock?re('div',{className:'admin-empty'},'No hay existencias positivas cargadas. Completa los conteos físicos para obtener alertas confiables.'):
+          alertas.length===0?re('div',{className:'admin-empty'},'No hay artículos por debajo del mínimo configurado.'):
+          re('div',null,alertas.map(function(i,idx){return re('div',{key:idx,className:'admin-info-row'},
+            re('div',null,re('div',{className:'admin-info-primary'},i.nombre),re('div',{className:'admin-info-sub'},i.tienda)),
+            re('span',{className:'admin-chip '+(i.stock<=0?'critical':'warn')},i.stock+' '+i.unidad));})),
+        link('inventario','Abrir inventario'))
+    ),
+    section('Movimientos recientes',
+      recientes.length ?
+        re('div',null,
+          recientes.map(function(x,i){
+            return re('div',{className:'admin-info-row',key:i},
+              re('div',null,
+                re('div',{className:'admin-info-primary'},x.titulo),
+                re('div',{className:'admin-info-sub'},(x.info||'')+' · '+fmtFecha(x.fecha))
+              ),
+              re('div',{className:'admin-info-value',style:{color:x.monto<0?'#aa4d42':'#1c3764'}},
+                (x.monto<0?'− ':'')+fmt(Math.abs(x.monto))
+              )
+            );
+          })
+        ) : re('div',{className:'admin-empty'},'Todavía no hay movimientos registrados.'),
+      link('historial','Movimientos por empleado'))
+  );
+}
+
 // ═══ ADMIN APP ══════════════════════════════════════════════════════
 
 // ═══ ADMIN APP ════════════════════════════════════════════════════
@@ -1859,39 +1970,69 @@ export default function AdminApp() {
   );
   if(error) return re("div",{style:{padding:24,color:C.red,textAlign:"center",fontSize:16}},error);
 
-  var TABS=[["resumen","📊 Resumen"],["semana","📅 Semanal"],["productos","🏆 Productos"],["graficas","📈 Gráficas"],["ventas","💰 Ventas"],["inventario","📦 Inventario"],["egresos","💸 Egresos"],["historial","👥 Movimientos por empleado"]];
-
-  return re("div",{style:{minHeight:"100vh",background:"#f5f5f7",fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"}},
-
-    re("div",{style:{background:"#7c3aed",color:"#fff",padding:"16px 20px",display:"flex",alignItems:"center",justifyContent:"space-between"}},
-      re("div",null,
-        re("div",{style:{fontSize:20,fontWeight:900}},"📊 Admin Crepisimo"),
-        re("div",{style:{fontSize:12,opacity:0.8}},"Panel de administración")
+  var NAV=[
+    ['resumen','▦','Inicio'],
+    ['ventas','▤','Ventas'],
+    ['inventario','▣','Inventario'],
+    ['egresos','◧','Compras y gastos'],
+    ['finanzas','▥','Finanzas y Clip'],
+    ['historial','♙','Empleados y movimientos'],
+    ['semana','▧','Resumen semanal'],
+    ['productos','✦','Productos'],
+    ['graficas','↗','Gráficas']
+  ];
+  var PAGE_META={
+    resumen:['Dashboard','Tu negocio de un vistazo, sin información innecesaria.'],
+    ventas:['Ventas','Consulta el historial de operaciones por sucursal.'],
+    inventario:['Inventario','Existencias, ajustes y control de insumos.'],
+    egresos:['Compras y gastos','Registra y revisa los movimientos de salida.'],
+    finanzas:['Finanzas y saldos de Clip','Detalle de saldos, comisiones y resultados registrados.'],
+    historial:['Movimientos por empleado','Identifica quién realizó cada operación.'],
+    semana:['Resumen semanal','Revisa el desempeño de cada semana.'],
+    productos:['Productos','Analiza el comportamiento de tu menú.'],
+    graficas:['Gráficas','Visualiza las tendencias de venta.']
+  };
+  var pm=PAGE_META[tab]||PAGE_META.resumen;
+  return re('div',{className:'admin-app'},
+    re('div',{className:'admin-layout'},
+      re('aside',{className:'admin-sidebar'},
+        re('div',{className:'admin-logo'},
+          re('div',{className:'admin-logo-icon'},'C'),
+          re('div',null,re('div',{className:'admin-brand-name'},'Crepísimo'),
+            re('div',{className:'admin-brand-sub'},'Panel administrativo'))),
+        re('div',{className:'admin-nav-label'},'GESTIÓN DEL NEGOCIO'),
+        re('nav',{className:'admin-nav','aria-label':'Secciones del administrativo'},
+          NAV.map(function(it){return re('button',{key:it[0],type:'button',className:'admin-nav-btn'+(tab===it[0]?' active':''),
+            onClick:function(){setTab(it[0]);},'aria-current':tab===it[0]?'page':undefined},
+            re('span',{className:'admin-nav-icon','aria-hidden':'true'},it[1]),re('span',null,it[2]));})
+        ),
+        re('div',{className:'admin-sidebar-footer'},
+          re('div',{style:{fontWeight:850,color:'#e4eeff'}},'● Sistema interno'),
+          re('div',null,'La información se obtiene de Supabase.'))
       ),
-      re("div",{style:{display:"flex",gap:8}},
-        re("button",{onClick:function(){setModalTransf(true);},style:{background:"rgba(255,255,255,0.15)",color:"#fff",border:"1px solid rgba(255,255,255,0.3)",borderRadius:12,padding:"10px 14px",fontSize:13,fontWeight:700,cursor:"pointer"}},"↔ Transf."),
-        re("button",{onClick:function(){setModalEgr(true);},style:{background:"rgba(255,255,255,0.2)",color:"#fff",border:"none",borderRadius:12,padding:"10px 16px",fontSize:13,fontWeight:700,cursor:"pointer"}},"+Egreso")
+      re('main',{className:'admin-main'},
+        re('header',{className:'admin-topbar'},
+          re('div',null,re('h1',{className:'admin-page-title'},pm[0]),re('p',{className:'admin-page-desc'},pm[1])),
+          re('div',{className:'admin-top-actions'},
+            (tab==='resumen'||tab==='ventas')?re('select',{className:'admin-select',value:tiendaSel,onChange:function(e){setTiendaSel(e.target.value);},'aria-label':'Filtrar sucursal'},
+              re('option',{value:'todas'},'Todas las sucursales'),TIENDAS.map(function(t){return re('option',{key:t.id,value:t.id},t.nombre);})):null,
+            re('button',{className:'admin-action',onClick:function(){setModalTransf(true);},type:'button'},'⇄ Transferencia'),
+            re('button',{className:'admin-action primary',onClick:function(){setModalEgr(true);},type:'button'},'+ Registrar gasto')
+          )
+        ),
+        re('div',{className:'admin-content'},
+          tab==='resumen'?re(DashboardHome,{ventas:ventas,gastos:gastos,inv:inv,tienda:tiendaSel,onNavigate:setTab}):null,
+          tab==='semana'?re('div',{className:'admin-legacy'},re(SemanaTab,{ventas:ventas,gastos:gastos})):null,
+          tab==='productos'?re('div',{className:'admin-legacy'},re(ProductosTab,{ventas:ventas})):null,
+          tab==='graficas'?re('div',{className:'admin-legacy'},re(GraficasTab,{ventas:ventas})):null,
+          tab==='ventas'?re('div',{className:'admin-legacy'},re(VentasAdmin,{ventas:ventas,tiendaId:tiendaSel,onTiendaChange:setTiendaSel})):null,
+          tab==='inventario'?re('div',{className:'admin-legacy'},re(InventarioAdmin,{datos:inv,onUpdate:handleUpdate,onRefresh:actualizarInventarioAdmin})):null,
+          tab==='egresos'?re('div',{className:'admin-legacy'},re(EgresosAdmin,{gastos:gastos,ventas:ventas,onEditar:editarGasto,onEliminar:eliminarGasto})):null,
+          tab==='historial'?re('div',{className:'admin-legacy'},re(HistorialEmpleados)):null,
+          tab==='finanzas'?re('div',{className:'admin-legacy'},re(ResumenTab,{ventas:ventas,gastos:gastos,inv:inv,tiendas:TIENDAS,onAgregarGasto:agregarGasto})):null
+        )
       )
     ),
-
-    re("div",{style:{background:"#fff",borderBottom:"1px solid #e0e0e0",display:"flex",overflowX:"auto"}},
-      TABS.map(function(t){
-        var sel=tab===t[0];
-        return re("button",{key:t[0],onClick:function(){setTab(t[0]);},style:{padding:"14px 16px",border:"none",borderBottom:"3px solid "+(sel?"#7c3aed":"transparent"),cursor:"pointer",fontWeight:sel?800:500,color:sel?"#7c3aed":"#888",background:"transparent",fontSize:13,whiteSpace:"nowrap"}},t[1]);
-      })
-    ),
-
-    re("div",{style:{padding:16,maxWidth:800,margin:"0 auto"}},
-      tab==="resumen"    ? re(ResumenTab,   {ventas:ventas,gastos:gastos,inv:inv,tiendas:TIENDAS,onAgregarGasto:agregarGasto}) : null,
-      tab==="semana"     ? re(SemanaTab,    {ventas:ventas,gastos:gastos}) : null,
-      tab==="productos"  ? re(ProductosTab, {ventas:ventas}) : null,
-      tab==="graficas"   ? re(GraficasTab,  {ventas:ventas}) : null,
-      tab==="ventas"     ? re(VentasAdmin,  {ventas:ventas,tiendaId:tiendaSel,onTiendaChange:setTiendaSel}) : null,
-      tab==="inventario" ? re(InventarioAdmin,{datos:inv,onUpdate:handleUpdate,onRefresh:actualizarInventarioAdmin}) : null,
-      tab==="egresos"    ? re(EgresosAdmin, {gastos:gastos,ventas:ventas,onEditar:editarGasto,onEliminar:eliminarGasto}) : null,
-      tab==="historial" ? re(HistorialEmpleados) : null
-    ),
-
     modalEgr?re(ModalEgreso,{onSave:agregarGasto,onClose:function(){setModalEgr(false);},insPorTienda:insPorTienda}):null,
     modalTransf?re(ModalTransferenciaDinero,{onSave:agregarGasto,onClose:function(){setModalTransf(false);}}):null
   );

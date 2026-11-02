@@ -1,0 +1,24 @@
+CREPÍSIMO - ADMINISTRATIVO REDISEÑADO (TABLET Y COMPUTADORA)
+
+QUÉ INCLUYE
+- Inicio nuevo con indicadores de ventas, egresos, resultado estimado, gráfico diario y alertas.
+- Navegación lateral azul marino; en tablet/anchos estrechos se convierte en menú horizontal.
+- Filtros de sucursal para Inicio y Ventas.
+- Sección independiente "Finanzas y Clip", con los cálculos y controles anteriores.
+- Pantallas de ventas, inventario, compras/gastos, historial de empleados y gráficas conservadas.
+- El dashboard de Clip muestra netos ESTIMADOS según lo registrado; NO son depósitos bancarios conciliados.
+
+CÓMO SUBIR A GITHUB
+1. Haz una copia/descarga del repositorio actual antes de reemplazar archivos.
+2. Descomprime este ZIP.
+3. Copia los ARCHIVOS Y CARPETAS DE DENTRO al repositorio GitHub del ADMINISTRATIVO (NO al del POS).
+4. Conserva los nombres de carpetas: src, public, package.json, index.html, etc.
+5. Realiza Commit changes en la rama que despliega Vercel.
+6. En Vercel comprueba Deployments -> Ready y revisa que el Inicio y las demás secciones abran.
+
+No necesitas ejecutar scripts SQL ni agregar variables de entorno para el cambio visual.
+No se han alterado tu Supabase ni tus datos de producción.
+
+ALCANCE DE LA VERIFICACIÓN
+Se comprobó la sintaxis del JavaScript/JSX y el renderizado lógico del nuevo DashboardHome con casos simulados.
+No se pudo completar la instalación offline de dependencias y, por tanto, la compilación Vite o una validación conectada a Supabase real.
