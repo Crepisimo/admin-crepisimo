@@ -32,8 +32,18 @@ export function metodoGasto(g){
   if(!m)return 'sin_especificar';
   return 'otro';
 }
+/** Fuente única del filtrado diario. Pedidos y resúmenes usan las mismas ventas. */
+export function ventasDeFecha(ventas,tienda,fecha,{incluirReembolsadas=false}={}){
+  return (ventas||[]).filter(v=>(!tienda||tienda==='todas'||v.tienda===tienda)
+    &&fechaCaja(v.timestamp)===fecha
+    &&(incluirReembolsadas||String(v.estadoPago||v.estado_pago||'').toLowerCase()!=='reembolsado'));
+}
+/** Actualiza la fecha actual tras medianoche sin borrar el día histórico seleccionado. */
+export function siguienteFechaAutomatica(anterior,seleccionada,actual){
+  return seleccionada===anterior?actual:seleccionada;
+}
 export function resumenCaja(ventas,gastos,tienda,fecha){
-  const ventasDia=(ventas||[]).filter(v=>v.tienda===tienda&&fechaCaja(v.timestamp)===fecha&&String(v.estadoPago||v.estado_pago||'').toLowerCase()!=='reembolsado');
+  const ventasDia=ventasDeFecha(ventas,tienda,fecha);
   const gastosDia=(gastos||[]).filter(g=>g.tienda===tienda&&g.seccion==='caja'&&fechaCaja(g.timestamp)===fecha&&g.tipo!=='transf_tarjeta'&&g.tipo!=='ajuste_saldo');
   const porMetodo=(m)=>ventasDia.filter(v=>v.metodo===m);
   const efectivo=porMetodo('efectivo');

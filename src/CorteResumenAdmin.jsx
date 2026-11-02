@@ -1,5 +1,5 @@
-import React,{useState} from 'react';
-import {fechaCaja,resumenCaja,etiquetaGasto,metodoGasto,ZONA_CAJA} from './corteCaja.mjs';
+import React,{useState,useEffect,useRef} from 'react';
+import {fechaCaja,resumenCaja,etiquetaGasto,metodoGasto,ZONA_CAJA,siguienteFechaAutomatica} from './corteCaja.mjs';
 import './corteResumenAdmin.css';
 const e=React.createElement;
 const formato=n=>new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(Number(n)||0);
@@ -8,6 +8,16 @@ const medios={efectivo:'Efectivo',tarjeta:'Tarjeta',transferencia:'Transferencia
 export default function CorteResumenAdmin({ventas=[],gastos=[]}){
   const [tienda,setTienda]=useState('centro');
   const [fecha,setFecha]=useState(fechaCaja(new Date()));
+  const hoyRef=useRef(fechaCaja(new Date()));
+  useEffect(()=>{
+    const revisar=()=>{
+      const ahora=fechaCaja(new Date());const anterior=hoyRef.current;
+      if(ahora!==anterior){setFecha(selected=>siguienteFechaAutomatica(anterior,selected,ahora));hoyRef.current=ahora;}
+    };
+    const interval=window.setInterval(revisar,15000);
+    window.addEventListener('focus',revisar);document.addEventListener('visibilitychange',revisar);
+    return ()=>{window.clearInterval(interval);window.removeEventListener('focus',revisar);document.removeEventListener('visibilitychange',revisar);};
+  },[]);
   const [abierto,setAbierto]=useState(false);
   const r=resumenCaja(ventas,gastos,tienda,fecha);
   const fila=(texto,valor)=>e('div',{className:'cra-row',key:texto},e('span',null,texto),e('strong',null,formato(valor)));

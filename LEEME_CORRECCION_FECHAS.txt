@@ -1,0 +1,23 @@
+ACTUALIZACION PUNTUAL · ADMINISTRATIVO · 02 NOV 2026
+
+CORRECCIONES:
+- Una sola función de fecha para consulta de caja y Resumen.
+- Resumen diario con opción Hoy / Ayer y fecha exacta visible.
+- Los totales del día se construyen del mismo listado de ventas vigentes que
+  consulta el POS; no se mezclan otros días ni sucursales.
+- La fecha se actualiza al cambiar de día en Oaxaca, incluso si la pestaña se
+  dejó abierta, sin borrar una selección histórica.
+- Los saldos financieros acumulados quedan rotulados como acumulados para no
+  confundirlos con las ventas del día.
+- Navegación y pestañas originales preservadas.
+
+INSTALACION:
+1. Respaldar repositorio actual.
+2. Subir el contenido de este ZIP a una RAMA DE PRUEBAS del admin.
+3. Verificar Vercel Ready.
+4. Comparar el mismo día y sucursal entre Pedidos y Corte por sucursal.
+5. Publicar solo después de validar con los datos de la empresa.
+
+No ejecutar SQL. No modifica datos almacenados.
+Pruebas realizadas: sintaxis y cálculos con registros simulados.
+La compilación final y conciliación con registros reales siguen pendientes.

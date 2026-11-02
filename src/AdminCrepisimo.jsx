@@ -2,6 +2,7 @@ import {apiFetch, rpc, freshId} from "./secureClient.jsx";
 import React, { useState, useEffect } from "react";
 import "./admin-theme.css";
 import CorteResumenAdmin from "./CorteResumenAdmin.jsx";
+import {fechaCaja,ventasDeFecha,siguienteFechaAutomatica} from "./corteCaja.mjs";
 
 // ═══ SUPABASE ════════════════════════════════════════════════════════
 var SB_URL = "https://ctsijalwjuzmingdxozi.supabase.co";
@@ -65,22 +66,8 @@ function impactoTransferencia(g, cuenta) {
 // Una fecha ISO con Z se convierte de UTC al día local; un timestamp sin zona
 // se interpreta como horario local, tal como se almacenó originalmente.
 var ZONA_NEGOCIO = "America/Mexico_City";
-function fechaLocal(ts) {
-  if (!ts) return "";
-  if (typeof ts === "string") {
-    var raw = ts.trim();
-    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
-    if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(raw) &&
-        !/(Z|[+-]\d{2}:?\d{2})$/i.test(raw)) return raw.slice(0,10);
-  }
-  var d = new Date(ts);
-  if (Number.isNaN(d.getTime())) return "";
-  var parts = new Intl.DateTimeFormat("en-US",{
-    timeZone:ZONA_NEGOCIO,year:"numeric",month:"2-digit",day:"2-digit"
-  }).formatToParts(d);
-  function part(t){return parts.find(function(v){return v.type===t;})?.value||"";}
-  return part("year")+"-"+part("month")+"-"+part("day");
-}
+function fechaLocal(ts){return fechaCaja(ts);}
+
 function fmtFecha(ts) {
   if (!ts) return "";
   var d=new Date(ts);
@@ -631,8 +618,23 @@ function ResumenTab(props) {
   var inv = props.inv || {};
   var tiendas = props.tiendas || [];
 
+  var stFechaDia=useState(hoyStr());var fechaDia=stFechaDia[0],setFechaDia=stFechaDia[1];
   var h=hoyStr();
-  function esHoy(ts){return fechaLocal(ts)===h;}
+  var hoyRef=React.useRef(h);
+  React.useEffect(function(){
+    function comprobarFecha(){
+      var nueva=hoyStr(),anterior=hoyRef.current;
+      if(nueva!==anterior){
+        setFechaDia(function(elegida){return siguienteFechaAutomatica(anterior,elegida,nueva);});
+        hoyRef.current=nueva;
+      }
+    }
+    var timer=window.setInterval(comprobarFecha,15000);
+    window.addEventListener('focus',comprobarFecha);
+    document.addEventListener('visibilitychange',comprobarFecha);
+    return function(){window.clearInterval(timer);window.removeEventListener('focus',comprobarFecha);document.removeEventListener('visibilitychange',comprobarFecha);};
+  },[]);
+  function esHoy(ts){return fechaLocal(ts)===fechaDia;}
 
   var sEdit=useState(null);var editSaldo=sEdit[0];var setEditSaldo=sEdit[1];
   var sEditVal=useState("");var editSaldoVal=sEditVal[0];var setEditSaldoVal=sEditVal[1];
@@ -646,9 +648,9 @@ function ResumenTab(props) {
     setEditSaldo(null);setEditSaldoVal("");
   }
 
-  var vHoy = ventas.filter(function(v){return esHoy(v.timestamp)&&v.estadoPago!=="reembolsado";});
+  var vHoy = ventasDeFecha(ventas,"todas",fechaDia);
   var gHoy = gastos.filter(function(g){return esHoy(g.timestamp)&&g.tipo!=="ajuste_saldo";});
-  var tvHoy = vHoy.reduce(function(s,v){return s+v.total;},0);
+  var tvHoy = totalDinero(vHoy,'total');
 
   // Selector de mes navegable
   var mesActual=h.slice(0,7);
@@ -664,7 +666,7 @@ function ResumenTab(props) {
   // Ventas por tienda hoy
   var vtHoy = {};
   tiendas.forEach(function(t){vtHoy[t.id]=0;});
-  vHoy.forEach(function(v){if(vtHoy[v.tienda]!==undefined)vtHoy[v.tienda]+=v.total;});
+  vHoy.forEach(function(v){if(vtHoy[v.tienda]!==undefined)vtHoy[v.tienda]+=Number(v.total)||0;});
 
   // Los reembolsos no son ingresos vigentes.
   var ventasVigentes = ventas.filter(function(v){return v.estadoPago!=="reembolsado";});
@@ -765,7 +767,11 @@ function ResumenTab(props) {
 
     // KPIs hoy
     re("div",{style:{background:"#fff",borderRadius:14,padding:16,marginBottom:14,boxShadow:"0 1px 6px rgba(0,0,0,.08)"}},
-      re("div",{style:{fontSize:12,fontWeight:800,color:"#888",textTransform:"uppercase",marginBottom:10}},"Hoy"),
+      re("div",{style:{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:10}},
+        re("div",{style:{fontSize:12,fontWeight:800,color:"#888",textTransform:"uppercase"}},"Ventas y gastos · "+fechaDia+" · todas las sucursales"),
+        re("button",{type:"button",onClick:function(){setFechaDia(hoyStr());},style:{marginLeft:"auto",padding:"6px 12px",borderRadius:8,border:"1px solid #d0d9e9",background:fechaDia===hoyStr()?"#172F58":"#fff",color:fechaDia===hoyStr()?"#fff":"#172F58",cursor:"pointer",fontWeight:700}},"Hoy"),
+        re("button",{type:"button",onClick:function(){setFechaDia(cambiarDiaLocal(hoyStr(),-1));},style:{padding:"6px 12px",borderRadius:8,border:"1px solid #d0d9e9",background:fechaDia===cambiarDiaLocal(hoyStr(),-1)?"#172F58":"#fff",color:fechaDia===cambiarDiaLocal(hoyStr(),-1)?"#fff":"#172F58",cursor:"pointer",fontWeight:700}},"Ayer")
+      ),
       re("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}},
         re("div",{style:{textAlign:"center"}},
           re("div",{style:{fontSize:24,fontWeight:900,color:"#22c55e"}},fmt(tvHoy)),
@@ -782,7 +788,7 @@ function ResumenTab(props) {
 
     // Saldos
     re("div",{style:{background:"#fff",borderRadius:14,padding:16,marginBottom:14,boxShadow:"0 1px 6px rgba(0,0,0,.08)"}},
-      re("div",{style:{fontSize:12,fontWeight:800,color:"#888",textTransform:"uppercase",marginBottom:10}},"Saldos estimados (no conciliados)"),
+      re("div",{style:{fontSize:12,fontWeight:800,color:"#888",textTransform:"uppercase",marginBottom:10}},"Saldos acumulados estimados (no son ventas del día)"),
       re("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}},
         re("div",{style:{background:"#f0fdf4",borderRadius:10,padding:10,textAlign:"center",cursor:"pointer"},onClick:function(){setEditSaldo(editSaldo==="efectivo"?null:"efectivo");setEditSaldoVal(String(Math.round(sEf)));}},
           re("div",{style:{fontSize:11,color:"#888",marginBottom:4}},"💵 Efectivo"),
@@ -817,14 +823,14 @@ function ResumenTab(props) {
       ),
       re("div",{style:{marginTop:10,fontSize:11,color:"#666",lineHeight:1.5}},
         "Clip " + mesNombres(mesSelec) + ": bruto " + fmt(clipBrutoMes) + " · comisión registrada " + fmt(comisionesClipMes) + " · neto estimado " + fmt(clipNetoMes),
-        re("div",null,"Saldos calculados, NO conciliados contra movimientos/depositos bancarios."),
+        re("div",null,"Saldos históricos acumulados, NO conciliados contra movimientos/depositos bancarios; no equivalen a ventas de hoy ni de ayer."),
         clipSinTerminal>0?re("div",{style:{color:"#b45309"}},clipSinTerminal+" cobro(s) de Clip sin terminal. Neto del mes sin asignar a ninguna tarjeta: "+fmt(clipSinAsignarMes)+". Conciliar manualmente."):null
       )
     ),
 
     // Ventas por tienda hoy
     re("div",{style:{background:"#fff",borderRadius:14,padding:16,marginBottom:14,boxShadow:"0 1px 6px rgba(0,0,0,.08)"}},
-      re("div",{style:{fontSize:12,fontWeight:800,color:"#888",textTransform:"uppercase",marginBottom:10}},"Ventas por tienda — Hoy"),
+      re("div",{style:{fontSize:12,fontWeight:800,color:"#888",textTransform:"uppercase",marginBottom:10}},"Ventas por tienda · "+fechaDia),
       tiendas.map(function(t){
         return re("div",{key:t.id,style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 0",borderBottom:"1px solid #f5f5f5"}},
           re("span",{style:{fontSize:13,fontWeight:600,color:"#333"}},t.emoji+" "+t.nombre),
