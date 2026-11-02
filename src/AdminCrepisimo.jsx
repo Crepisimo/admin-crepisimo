@@ -60,17 +60,74 @@ function impactoTransferencia(g, cuenta) {
   return (hacia===cuenta?Number(g.monto)||0:0)-(desde===cuenta?Number(g.monto)||0:0);
 }
 
-function fmtFecha(ts) { if(!ts)return""; var d=new Date(ts); return d.getDate()+"/"+(d.getMonth()+1)+" "+d.getHours()+":"+(d.getMinutes()<10?"0":"")+d.getMinutes(); }
-function hoyStr() { var d=new Date(); return d.getFullYear()+"-"+(d.getMonth()+1<10?"0":"")+(d.getMonth()+1)+"-"+(d.getDate()<10?"0":"")+(d.getDate()); }
-function enRango(ts,ini,fin) { if(!ts)return false; var d=new Date(ts); var ld=d.getFullYear()+"-"+(d.getMonth()+1<10?"0":"")+(d.getMonth()+1)+"-"+(d.getDate()<10?"0":"")+(d.getDate()); return ld>=ini&&ld<=fin; }
-function getRango(periodo,fechaIni,fechaFin) {
-  var h=hoyStr();
-  if(periodo==="hoy") return{ini:h,fin:h};
-  if(periodo==="semana"){var d=new Date();var lun=new Date(d);lun.setDate(d.getDate()-((d.getDay()+6)%7));return{ini:lun.toISOString().split("T")[0],fin:h};}
-  if(periodo==="mes"){var d2=new Date();return{ini:d2.getFullYear()+"-"+(d2.getMonth()+1<10?"0":"")+(d2.getMonth()+1)+"-01",fin:h};}
-  if(periodo==="custom"&&fechaIni&&fechaFin) return{ini:fechaIni,fin:fechaFin};
-  return{ini:h,fin:h};
+// Criterio único de fechas: calendario de Oaxaca (America/Mexico_City).
+// Una fecha ISO con Z se convierte de UTC al día local; un timestamp sin zona
+// se interpreta como horario local, tal como se almacenó originalmente.
+var ZONA_NEGOCIO = "America/Mexico_City";
+function fechaLocal(ts) {
+  if (!ts) return "";
+  if (typeof ts === "string") {
+    var raw = ts.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+    if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(raw) &&
+        !/(Z|[+-]\d{2}:?\d{2})$/i.test(raw)) return raw.slice(0,10);
+  }
+  var d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return "";
+  var parts = new Intl.DateTimeFormat("en-US",{
+    timeZone:ZONA_NEGOCIO,year:"numeric",month:"2-digit",day:"2-digit"
+  }).formatToParts(d);
+  function part(t){return parts.find(function(v){return v.type===t;})?.value||"";}
+  return part("year")+"-"+part("month")+"-"+part("day");
 }
+function fmtFecha(ts) {
+  if (!ts) return "";
+  var d=new Date(ts);
+  if(Number.isNaN(d.getTime())) return String(ts).slice(0,16);
+  return new Intl.DateTimeFormat("es-MX",{
+    timeZone:ZONA_NEGOCIO,day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"
+  }).format(d);
+}
+function hoyStr(){return fechaLocal(new Date());}
+function cambiarDiaLocal(k,offset){
+  var d=new Date(k+"T12:00:00Z");
+  d.setUTCDate(d.getUTCDate()+offset);
+  return d.toISOString().slice(0,10);
+}
+function etiquetaDia(k){
+  return new Date(k+"T12:00:00Z").toLocaleDateString("es-MX",{timeZone:"UTC",day:"2-digit",month:"short"});
+}
+function enRango(ts,ini,fin){
+  var k=fechaLocal(ts);
+  return Boolean(k&&ini&&fin&&ini<=fin&&k>=ini&&k<=fin);
+}
+function getRango(periodo,fechaIni,fechaFin){
+  var h=hoyStr();
+  if(periodo==="hoy")return {ini:h,fin:h};
+  if(periodo==="ayer") {var a=cambiarDiaLocal(h,-1);return {ini:a,fin:a};}
+  if(periodo==="7dias")return {ini:cambiarDiaLocal(h,-6),fin:h};
+  if(periodo==="semana"){
+    var n=(new Date(h+"T12:00:00Z").getUTCDay()+6)%7;
+    return {ini:cambiarDiaLocal(h,-n),fin:h};
+  }
+  if(periodo==="mes")return {ini:h.slice(0,7)+"-01",fin:h};
+  if(periodo==="mes_anterior"){
+    var d=new Date(h.slice(0,7)+"-01T12:00:00Z");
+    d.setUTCMonth(d.getUTCMonth()-1);
+    var ini=d.toISOString().slice(0,7)+"-01";
+    var fin=new Date(Date.UTC(Number(ini.slice(0,4)),Number(ini.slice(5,7)),0)).toISOString().slice(0,10);
+    return {ini:ini,fin:fin};
+  }
+  if(periodo==="custom"){
+    return {ini:fechaIni||h,fin:fechaFin||h};
+  }
+  return {ini:h,fin:h};
+}
+function totalDinero(arr,campo){
+  return Math.round((arr||[]).reduce(function(s,r){return s+(Number(r[campo])||0);},0)*100)/100;
+}
+function ventaVigente(v){return String(v.estadoPago||"").toLowerCase()!=="reembolsado";}
+function egresoContable(g){return g.tipo!=="transf_tarjeta"&&g.tipo!=="ajuste_saldo";}
 
 var C={
   dark:"#172F58",
@@ -573,8 +630,8 @@ function ResumenTab(props) {
   var inv = props.inv || {};
   var tiendas = props.tiendas || [];
 
-  var h = (function(){var d=new Date();return d.getFullYear()+"-"+(d.getMonth()+1<10?"0":"")+(d.getMonth()+1)+"-"+(d.getDate()<10?"0":"")+d.getDate();})();
-  function esHoy(ts){if(!ts)return false;var d=new Date(ts);return d.getFullYear()+"-"+(d.getMonth()+1<10?"0":"")+(d.getMonth()+1)+"-"+(d.getDate()<10?"0":"")+d.getDate()===h;}
+  var h=hoyStr();
+  function esHoy(ts){return fechaLocal(ts)===h;}
 
   var sEdit=useState(null);var editSaldo=sEdit[0];var setEditSaldo=sEdit[1];
   var sEditVal=useState("");var editSaldoVal=sEditVal[0];var setEditSaldoVal=sEditVal[1];
@@ -593,12 +650,12 @@ function ResumenTab(props) {
   var tvHoy = vHoy.reduce(function(s,v){return s+v.total;},0);
 
   // Selector de mes navegable
-  var mesActual=(function(){var d=new Date();return d.getFullYear()+"-"+(d.getMonth()+1<10?"0":"")+(d.getMonth()+1);})();
+  var mesActual=h.slice(0,7);
   var sMesR=useState(mesActual);var mesSelec=sMesR[0];var setMesSelec=sMesR[1];
   function mesNombres(m){var p=m.split("-");var y=p[0];var mo=parseInt(p[1]);var ns=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];return ns[mo-1]+" "+y;}
   function mesPrev(){var p=mesSelec.split("-");var y=parseInt(p[0]);var mo=parseInt(p[1]);mo--;if(mo<1){mo=12;y--;}setMesSelec(y+"-"+(mo<10?"0":"")+mo);}
   function mesNext(){var p=mesSelec.split("-");var y=parseInt(p[0]);var mo=parseInt(p[1]);mo++;if(mo>12){mo=1;y++;}var nx=y+"-"+(mo<10?"0":"")+mo;if(nx<=mesActual)setMesSelec(nx);}
-  function esMes(ts){if(!ts)return false;var d=new Date(ts);var m=d.getFullYear()+"-"+(d.getMonth()+1<10?"0":"")+(d.getMonth()+1);return m===mesSelec;}
+  function esMes(ts){return fechaLocal(ts).slice(0,7)===mesSelec;}
   var vMes = ventas.filter(function(v){return esMes(v.timestamp)&&v.estadoPago!=="reembolsado";});
   var gMes = gastos.filter(function(g){return esMes(g.timestamp)&&g.tipo!=="ajuste_saldo";});
   var tgHoy = gHoy.filter(function(g){return g.tipo!=="transf_tarjeta";}).reduce(function(s,g){return s+g.monto;},0);
@@ -827,20 +884,14 @@ function SemanaTab(props) {
   var gastos = props.gastos || [];
   var st1 = useState(0); var semOffset = st1[0]; var setSemOffset = st1[1];
 
-  function getlunes(offset){
-    var d=new Date();
-    d.setDate(d.getDate()-((d.getDay()+6)%7)+(offset*7));
-    d.setHours(0,0,0,0);
-    return d;
-  }
-  var lunes=getlunes(semOffset);
+  var fechaHoy=hoyStr();
+  var lun=cambiarDiaLocal(fechaHoy,-((new Date(fechaHoy+'T12:00:00Z').getUTCDay()+6)%7)+semOffset*7);
   var dias=["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"].map(function(n,i){
-    var d=new Date(lunes);d.setDate(lunes.getDate()+i);
-    var ld=d.getFullYear()+"-"+(d.getMonth()+1<10?"0":"")+(d.getMonth()+1)+"-"+(d.getDate()<10?"0":"")+(d.getDate());
-    var vd=ventas.filter(function(v){var dd=new Date(v.timestamp);return dd.getFullYear()+"-"+(dd.getMonth()+1<10?"0":"")+(dd.getMonth()+1)+"-"+(dd.getDate()<10?"0":"")+(dd.getDate())===ld;});
-    var gd=gastos.filter(function(g){var dd=new Date(g.timestamp);return dd.getFullYear()+"-"+(dd.getMonth()+1<10?"0":"")+(dd.getMonth()+1)+"-"+(dd.getDate()<10?"0":"")+(dd.getDate())===ld&&g.tipo!=="transf_tarjeta";});
-    var tv=vd.reduce(function(s,v){return s+v.total;},0);
-    var tg=gd.reduce(function(s,g){return s+g.monto;},0);
+    var ld=cambiarDiaLocal(lun,i);
+    var vd=ventas.filter(function(v){return ventaVigente(v)&&fechaLocal(v.timestamp)===ld;});
+    var gd=gastos.filter(function(g){return egresoContable(g)&&fechaLocal(g.timestamp)===ld;});
+    var tv=totalDinero(vd,'total');
+    var tg=totalDinero(gd,'monto');
     return{nombre:n,fecha:ld,tv:tv,tg:tg,util:tv-tg,nv:vd.length};
   });
 
@@ -905,9 +956,9 @@ function ProductosTab(props) {
   var st4 = useState("todas"); var tienda = st4[0]; var setTienda = st4[1];
 
   var rango = getRango(periodo, fechaIni, fechaFin);
-  function enR(ts){if(!ts)return false;var d=new Date(ts);var ld=d.getFullYear()+"-"+(d.getMonth()+1<10?"0":"")+(d.getMonth()+1)+"-"+(d.getDate()<10?"0":"")+(d.getDate());return ld>=rango.ini&&ld<=rango.fin;}
+  function enR(ts){if(!ts)return false;return enRango(ts,rango.ini,rango.fin);}
 
-  var vFil=ventas.filter(function(v){return enR(v.timestamp)&&(tienda==="todas"||v.tienda===tienda);});
+  var vFil=ventas.filter(function(v){return ventaVigente(v)&&enR(v.timestamp)&&(tienda==="todas"||v.tienda===tienda);});
 
   var prods={};
   vFil.forEach(function(v){
@@ -972,21 +1023,20 @@ function GraficasTab(props) {
   var st2 = useState("todas"); var tienda = st2[0]; var setTienda = st2[1];
 
   var vFil = ventas.filter(function(v){
-    return tienda==="todas" || v.tienda===tienda;
+    return ventaVigente(v)&&(tienda==="todas"||v.tienda===tienda);
   });
-
+  // No mezclar 1 de noviembre de años diferentes ni semanas de otros años.
   var datos = (function(){
     var r={};
     vFil.forEach(function(v){
-      var d=new Date(v.timestamp);
-      var k;
-      if(modo==="dias") k=d.getDate()+"/"+(d.getMonth()+1);
-      else if(modo==="semana") k=["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"][d.getDay()];
-      else k=["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"][d.getMonth()];
+      var k=fechaLocal(v.timestamp);
+      if(!k)return;
+      if(modo==='semana') k=cambiarDiaLocal(k,-((new Date(k+'T12:00:00Z').getUTCDay()+6)%7));
+      else if(modo==='meses') k=k.slice(0,7);
       if(!r[k])r[k]={l:k,v:0};
-      r[k].v+=v.total;
+      r[k].v+=(Number(v.total)||0);
     });
-    return Object.values(r);
+    return Object.keys(r).sort().map(function(k){return {l:k,v:Math.round(r[k].v*100)/100};}).slice(-24);
   })();
 
   return re("div",null,
@@ -1344,17 +1394,17 @@ function VentasAdmin(props) {
   var st3 = useState(""); var fechaFin = st3[0]; var setFechaFin = st3[1];
   var st4 = useState("resumen"); var tab = st4[0]; var setTab = st4[1];
 
-  var rango = getRango(periodo, fechaIni, fechaFin);
+  var rango = props.rango || getRango(periodo, fechaIni, fechaFin);
   var vFil = ventas.filter(function(v) {
     return (tiendaId === "todas" || v.tienda === tiendaId) && enRango(v.timestamp, rango.ini, rango.fin);
   });
 
-  var vFilOk = vFil.filter(function(v){return v.estadoPago!=="reembolsado";});
+  var vFilOk = vFil.filter(ventaVigente);
   var tv = vFilOk.reduce(function(s, v) { return s + v.total; }, 0);
   var nv = vFilOk.length;
 
   var prods = {};
-  vFil.forEach(function(v) {
+  vFilOk.forEach(function(v) {
     (v.items || []).forEach(function(item) {
       if (item.precio < 0 || item.esDescuento) return;
       var n = (item.nombre || "").replace(" (empleado)","").replace(" (promo)","").trim();
@@ -1365,22 +1415,23 @@ function VentasAdmin(props) {
   var prodsArr = Object.values(prods).sort(function(a, b) { return b.qty - a.qty; });
 
   var porDia = {};
-  vFil.forEach(function(v) {
-    var d = new Date(v.timestamp);
-    var k = d.getFullYear() + "-" + (d.getMonth()+1<10?"0":"") + (d.getMonth()+1) + "-" + (d.getDate()<10?"0":"") + d.getDate();
+  vFilOk.forEach(function(v) {
+    var k = fechaLocal(v.timestamp);
     if (!porDia[k]) porDia[k] = { fecha:k, total:0, count:0 };
     porDia[k].total += v.total; porDia[k].count++;
   });
   var diasArr = Object.values(porDia).sort(function(a, b) { return b.fecha.localeCompare(a.fecha); });
 
-  var metodos = { efectivo:0, clip:0, didi:0, ml:0 };
-  vFil.forEach(function(v) {
-    var m = v.metodo || "efectivo";
-    if (m==="efectivo") metodos.efectivo+=v.total;
-    else if (m==="clip") metodos.clip+=v.total;
-    else if (m==="didi") metodos.didi+=v.total;
-    else if (m==="mercadolibre") metodos.ml+=v.total;
+  // Agrupar TODOS los métodos registrados (incluyendo transferencia y otros),
+  // para que el desglose por pago cuadre exactamente con las ventas vigentes.
+  var metodos = {};
+  vFilOk.forEach(function(v){
+    var m=String(v.metodo||'sin_especificar').trim().toLowerCase();
+    metodos[m]=(metodos[m]||0)+(Number(v.total)||0);
   });
+  var nombresMetodos={efectivo:'💵 Efectivo',clip:'💳 Clip',transferencia:'📲 Transferencia',didi:'🛵 Didi Food',mercadolibre:'🛒 Mercado Libre',sin_especificar:'Sin especificar'};
+  var coloresMetodos=['#23825E','#386DAD','#B86F36','#7D69B6','#A0A746'];
+  var metodosArr=Object.keys(metodos).sort().map(function(m,i){return [nombresMetodos[m]||m,metodos[m],coloresMetodos[i%coloresMetodos.length]];});
 
   return re("div", null,
     re("div", { style:{ background:"#fff", borderRadius:14, padding:14, marginBottom:14, boxShadow:"0 1px 6px rgba(0,0,0,.08)" } },
@@ -1393,7 +1444,7 @@ function VentasAdmin(props) {
               color:sel?"#fff":"#555", fontSize:12 } }, t.emoji+" "+t.nombre);
         })
       ),
-      re("div", { style:{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:periodo==="custom"?10:0 } },
+      !props.rango?re("div", { style:{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:periodo==="custom"?10:0 } },
         [["hoy","Hoy"],["semana","Semana"],["mes","Este mes"],["custom","Personalizado"]].map(function(p) {
           var sel = periodo === p[0];
           return re("button", { key:p[0], onClick:function() { setPeriodo(p[0]); },
@@ -1401,8 +1452,8 @@ function VentasAdmin(props) {
               cursor:"pointer", fontWeight:sel?800:500, background:sel?C.dark:"#fff",
               color:sel?"#fff":"#555", fontSize:12 } }, p[1]);
         })
-      ),
-      periodo === "custom" ? re("div", { style:{ display:"flex", gap:8, marginTop:8 } },
+      ):null,
+      !props.rango && periodo === "custom" ? re("div", { style:{ display:"flex", gap:8, marginTop:8 } },
         re("input", { type:"date", value:fechaIni, onChange:function(e) { setFechaIni(e.target.value); }, style:Object.assign({},IP,{flex:1}) }),
         re("input", { type:"date", value:fechaFin, onChange:function(e) { setFechaFin(e.target.value); }, style:Object.assign({},IP,{flex:1}) })
       ) : null
@@ -1428,7 +1479,7 @@ function VentasAdmin(props) {
 
     re("div", { style:{ background:"#fff", borderRadius:14, padding:16, boxShadow:"0 1px 6px rgba(0,0,0,.08)" } },
       tab === "resumen" ? re("div", null,
-        [["💵 Efectivo",metodos.efectivo],["💳 Clip",metodos.clip],["🛵 Didi",metodos.didi],["🛒 ML",metodos.ml]].map(function(m,i) {
+        metodosArr.map(function(m,i) {
           if (m[1]===0) return null;
           return re("div", { key:i, style:{ display:"flex", justifyContent:"space-between", padding:"8px 0", borderBottom:"1px solid #f5f5f5" } },
             re("span", { style:{ fontSize:13, color:"#555" } }, m[0]),
@@ -1469,7 +1520,7 @@ function VentasAdmin(props) {
       ) :
 
       tab === "metodos" ? re("div", null,
-        [["💵 Efectivo",metodos.efectivo,"#22c55e"],["💳 Clip",metodos.clip,"#3b82f6"],["🛵 Didi",metodos.didi,"#f97316"],["🛒 ML",metodos.ml,"#facc15"]].map(function(m,i) {
+        metodosArr.map(function(m,i) {
           var pct = tv > 0 ? Math.round(m[1]/tv*100) : 0;
           return re("div", { key:i, style:{ marginBottom:12 } },
             re("div", { style:{ display:"flex", justifyContent:"space-between", marginBottom:4 } },
@@ -1499,10 +1550,11 @@ function EgresosAdmin(props) {
   var st5 = useState(null); var editG = st5[0]; var setEditG = st5[1];
   var st6 = useState({ monto:"", desc:"" }); var editV = st6[0]; var setEditV = st6[1];
 
-  var rango = getRango(periodo, fechaIni, fechaFin);
+  var rango = props.rango || getRango(periodo, fechaIni, fechaFin);
   var gFil = gastos.filter(function(g) {
-    if(g.tipo === "ajuste_saldo") return false;
-    var enT = filtroT === "todas" || g.tienda === filtroT || (!g.tienda && filtroT === "global");
+    if(!egresoContable(g)) return false;
+    var tiendaFiltro=props.tiendaId||filtroT;
+    var enT = tiendaFiltro === "todas" || g.tienda === tiendaFiltro || (!g.tienda && tiendaFiltro === "global");
     return enT && enRango(g.timestamp, rango.ini, rango.fin);
   });
 
@@ -1513,8 +1565,11 @@ function EgresosAdmin(props) {
   var tTarM = gFil.filter(function(g) { return g.tipo === "tarjeta_migue"; }).reduce(function(s,g) { return s+g.monto; }, 0);
   var tTarA = gFil.filter(function(g) { return g.tipo === "tarjeta_angel"; }).reduce(function(s,g) { return s+g.monto; }, 0);
   var tOtro = gFil.filter(function(g) { return g.tipo === "otro"; }).reduce(function(s,g) { return s+g.monto; }, 0);
-  var tComisionML=ventas2.filter(function(v){return v.metodo==="mercadolibre"&&enRango(v.timestamp,rango.ini,rango.fin);}).reduce(function(s,v){return s+(v.comisionML||(v.total-(v.netoRecibido||v.total)));},0);
-  var tTotal = tMP+tColab+tOper+tPers+tTarM+tTarA+tOtro+tComisionML;
+  // Un gasto se contabiliza solo si existe en la tabla de gastos; no sumar
+  // estimaciones de comisiones de ventas, que duplicarían partidas.
+  var tTotal = totalDinero(gFil,'monto');
+  var totalCategorizado=tMP+tColab+tOper+tPers+tTarM+tTarA+tOtro;
+  var otrosTipos=tTotal-totalCategorizado;
 
   function getDesc(g) {
     var t = g.tienda ? " [" + g.tienda.charAt(0).toUpperCase() + g.tienda.slice(1) + "]" : "";
@@ -1531,7 +1586,7 @@ function EgresosAdmin(props) {
 
   return re("div", null,
     re("div", { style:{ background:"#fff", borderRadius:14, padding:14, marginBottom:14, boxShadow:"0 1px 6px rgba(0,0,0,.08)" } },
-      re("div", { style:{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:8 } },
+      !props.rango?re("div", { style:{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:8 } },
         [["hoy","Hoy"],["semana","Semana"],["mes","Mes"],["custom","Personalizado"]].map(function(p) {
           var sel = periodo === p[0];
           return re("button", { key:p[0], onClick:function() { setPeriodo(p[0]); },
@@ -1539,12 +1594,12 @@ function EgresosAdmin(props) {
               cursor:"pointer", fontWeight:sel?800:500, background:sel?C.dark:"#fff",
               color:sel?"#fff":"#555", fontSize:12 } }, p[1]);
         })
-      ),
-      periodo === "custom" ? re("div", { style:{ display:"flex", gap:8, marginBottom:8 } },
+      ):null,
+      !props.rango && periodo === "custom" ? re("div", { style:{ display:"flex", gap:8, marginBottom:8 } },
         re("input", { type:"date", value:fechaIni, onChange:function(e) { setFechaIni(e.target.value); }, style:Object.assign({},IP,{flex:1}) }),
         re("input", { type:"date", value:fechaFin, onChange:function(e) { setFechaFin(e.target.value); }, style:Object.assign({},IP,{flex:1}) })
       ) : null,
-      re("div", { style:{ display:"flex", gap:6, flexWrap:"wrap" } },
+      !props.rango?re("div", { style:{ display:"flex", gap:6, flexWrap:"wrap" } },
         tiendaOpts.map(function(t) {
           var sel = filtroT === t.id;
           return re("button", { key:t.id, onClick:function() { setFiltroT(t.id); },
@@ -1552,13 +1607,13 @@ function EgresosAdmin(props) {
               cursor:"pointer", fontWeight:sel?800:500, background:sel?C.dark:"#fff",
               color:sel?"#fff":"#555", fontSize:11 } }, t.emoji+" "+t.nombre);
         })
-      )
+      ):null
     ),
 
     re("div", { style:{ background:"#fff", borderRadius:14, padding:16, marginBottom:14, boxShadow:"0 1px 6px rgba(0,0,0,.08)" } },
       re("div", { style:SC }, "Desglose de egresos"),
       [["📦 Materia Prima",tMP],["👤 Colaboradores",tColab],["⚙️ Operativo",tOper],
-       ["👫 Personal A&M",tPers],["💳 T.Migue",tTarM],["💳 T.Angel",tTarA],["💸 Otros",tOtro],["🛒 Comisión ML",tComisionML]].map(function(row,i) {
+       ["👫 Personal A&M",tPers],["💳 T.Migue",tTarM],["💳 T.Angel",tTarA],["💸 Otros",tOtro],["📋 Otros tipos",otrosTipos]].map(function(row,i) {
         if (row[1] === 0) return null;
         return re("div", { key:i, style:{ display:"flex", justifyContent:"space-between", padding:"8px 0", borderBottom:"1px solid #f5f5f5" } },
           re("span", { style:{ fontSize:13, color:"#555" } }, row[0]),
@@ -1781,110 +1836,114 @@ function HistorialEmpleados(){
 
 // ═══ PANEL DE INICIO · VISTA LIMPIA SIN MODIFICAR LAS OPERACIONES ═══
 function DashboardHome(props){
-  var ventas=(props.ventas||[]).filter(function(v){return props.tienda==='todas'||v.tienda===props.tienda;});
-  var gastos=(props.gastos||[]).filter(function(g){return props.tienda==='todas'||g.tienda===props.tienda;});
+  var rango=props.rango||getRango("hoy");
+  var ventas=(props.ventas||[]).filter(function(v){return (props.tienda==='todas'||v.tienda===props.tienda)&&enRango(v.timestamp,rango.ini,rango.fin);});
+  var gastos=(props.gastos||[]).filter(function(g){return (props.tienda==='todas'||g.tienda===props.tienda)&&enRango(g.timestamp,rango.ini,rango.fin);});
   var inv=props.inv||{};
-  var hoy=hoyStr(),mes=hoy.slice(0,7);
-  var vigentes=ventas.filter(function(v){return v.estadoPago!=='reembolsado';});
-  var vendidasHoy=vigentes.filter(function(v){return enRango(v.timestamp,hoy,hoy);});
-  var vendidasMes=vigentes.filter(function(v){return v.timestamp&&v.timestamp.slice(0,7)===mes;});
-  var gastosMes=gastos.filter(function(g){return g.timestamp&&g.timestamp.slice(0,7)===mes&&g.tipo!=='transf_tarjeta'&&g.tipo!=='ajuste_saldo';});
-  var vDia=vendidasHoy.reduce(function(s,v){return s+(Number(v.total)||0);},0);
-  var vMes=vendidasMes.reduce(function(s,v){return s+(Number(v.total)||0);},0);
-  var gMes=gastosMes.reduce(function(s,g){return s+(Number(g.monto)||0);},0);
-  var clip=vendidasMes.filter(function(v){return v.metodo==='clip';});
-  var brutoClip=clip.reduce(function(s,v){return s+(Number(v.total)||0);},0);
-  var comClip=clip.reduce(function(s,v){return s+(Number(v.comisionClip)||0);},0);
-  var netoClip=clip.reduce(function(s,v){return s+importeNetoClip(v);},0);
+  var validado=rango.ini<=rango.fin;
+  var vigentes=ventas.filter(ventaVigente);
+  var reembolsadas=ventas.filter(function(v){return !ventaVigente(v);});
+  var egresos=gastos.filter(egresoContable);
+  var transferencias=gastos.filter(function(g){return g.tipo==='transf_tarjeta';});
+  var ventaBruta=totalDinero(vigentes,'total');
+  var gastosRegistrados=totalDinero(egresos,'monto');
+  var resultado=ventaBruta-gastosRegistrados;
+  var clip=vigentes.filter(function(v){return v.metodo==='clip';});
+  var brutoClip=totalDinero(clip,'total');
+  var comClip=totalDinero(clip,'comisionClip');
+  var netoClip=Math.round(clip.reduce(function(s,v){return s+importeNetoClip(v);},0)*100)/100;
   var sinTerminal=clip.filter(function(v){return tarjetaDestinoClip(v)==='sin_terminal';});
-  var montoSinTerminal=sinTerminal.reduce(function(s,v){return s+importeNetoClip(v);},0);
-  var allIns=(props.tienda==='todas'?Object.keys(inv):[props.tienda]).reduce(function(arr,t){
+  var montoSinTerminal=Math.round(sinTerminal.reduce(function(s,v){return s+importeNetoClip(v);},0)*100)/100;
+  var devoluciones=totalDinero(reembolsadas,'total');
+  var insTodas=(props.tienda==='todas'?Object.keys(inv):[props.tienda]).reduce(function(arr,t){
     var shop=TIENDAS.find(function(x){return x.id===t;});
     return arr.concat((inv[t]||[]).map(function(i){return {nombre:i.nombre,tienda:shop?shop.nombre:t,stock:Number(i.stock)||0,minimo:Number(i.minimo)||0,unidad:i.unidad||''};}));
   },[]);
-  var conStock=allIns.filter(function(i){return i.stock>0;}).length;
-  var alertas=conStock?allIns.filter(function(i){return i.minimo>0&&i.stock<=i.minimo;}).sort(function(a,b){return a.stock-b.stock;}).slice(0,5):[];
+  var conStock=insTodas.filter(function(i){return i.stock>0;}).length;
+  var alertas=conStock?insTodas.filter(function(i){return i.minimo>0&&i.stock<=i.minimo;}).sort(function(a,b){return a.stock-b.stock;}).slice(0,5):[];
   var dias=[];
-  for(var n=6;n>=0;n--){
-    var fecha=new Date();fecha.setHours(12,0,0,0);fecha.setDate(fecha.getDate()-n);
-    var k=fecha.getFullYear()+'-'+String(fecha.getMonth()+1).padStart(2,'0')+'-'+String(fecha.getDate()).padStart(2,'0');
-    dias.push({k:k,l:fecha.toLocaleDateString('es-MX',{weekday:'short'}).replace('.',''),v:vigentes.filter(function(x){return enRango(x.timestamp,k,k);}).reduce(function(s,x){return s+(Number(x.total)||0);},0)});
+  if(validado){
+    var diaInicio=rango.ini;
+    var diaGraf=cambiarDiaLocal(rango.fin,-6);
+    if(diaGraf<diaInicio)diaGraf=diaInicio;
+    for(var k=diaGraf,i=0;k<=rango.fin&&i<7;k=cambiarDiaLocal(k,1),i++){
+      var porFecha=vigentes.filter(function(v){return fechaLocal(v.timestamp)===k;});
+      dias.push({k:k,l:etiquetaDia(k),v:totalDinero(porFecha,'total')});
+    }
   }
   var maxDia=Math.max.apply(null,[1].concat(dias.map(function(d){return d.v;})));
-  var recientes=ventas.map(function(v){return {fecha:v.timestamp,titulo:'Venta',info:v.tienda+' · '+(v.metodo||'sin método'),monto:Number(v.total)||0};})
-    .concat(gastos.filter(function(g){return g.tipo!=='ajuste_saldo';}).map(function(g){return {fecha:g.timestamp,titulo:g.tipo==='insumo'?'Compra de insumos':'Egreso',info:g.tienda+' · '+(g.desc||g.insumoNombre||'Movimiento'),monto:-(Number(g.monto)||0)};}))
-    .filter(function(x){return x.fecha;}).sort(function(a,b){return new Date(b.fecha)-new Date(a.fecha);}).slice(0,5);
+  var porSucursal=TIENDAS.filter(function(t){return props.tienda==='todas'||t.id===props.tienda;}).map(function(t){
+    var rows=vigentes.filter(function(v){return v.tienda===t.id;});
+    return {id:t.id,nombre:t.nombre,emoji:t.emoji,cantidad:rows.length,total:totalDinero(rows,'total')};
+  });
+  var recientes=ventas.map(function(v){return {fecha:v.timestamp,titulo:ventaVigente(v)?'Venta':'Venta reembolsada',info:v.tienda+' · '+(v.metodo||'sin método'),monto:Number(v.total)||0,reembolso:!ventaVigente(v)};})
+    .concat(gastos.map(function(g){return {fecha:g.timestamp,titulo:g.tipo==='transf_tarjeta'?'Transferencia interna':g.tipo==='insumo'?'Compra de insumos':g.tipo==='ajuste_saldo'?'Ajuste de saldo':'Gasto',info:g.tienda+' · '+(g.desc||g.insumoNombre||'Movimiento'),monto:Number(g.monto)||0,egreso:egresoContable(g)};}))
+    .filter(function(x){return x.fecha;}).sort(function(a,b){return new Date(b.fecha)-new Date(a.fecha);}).slice(0,6);
   function link(id,label){return re('button',{className:'admin-button-link',onClick:function(){props.onNavigate(id);}},label+' →');}
-  function section(titulo,contenido,accion){return re('section',{className:'admin-panel'},
-    re('div',{className:'admin-section-head'},re('div',{className:'admin-section-title'},titulo),accion||null),contenido);
-  }
+  function section(titulo,contenido,accion){return re('section',{className:'admin-panel'},re('div',{className:'admin-section-head'},re('div',{className:'admin-section-title'},titulo),accion||null),contenido);}
   function kpi(etiqueta,valor,descripcion,icon){return re('div',{className:'admin-kpi',key:etiqueta},
     re('div',{className:'admin-kpi-top'},re('div',{className:'admin-kpi-name'},etiqueta),re('div',{className:'admin-kpi-ico'},icon)),
     re('div',{className:'admin-kpi-value'},valor),re('div',{className:'admin-kpi-hint'},descripcion));}
   return re('div',{className:'admin-dash'},
-    re('div',null,re('div',{className:'admin-overline'},'Vista general'),
-      re('div',{className:'admin-page-caption'},props.tienda==='todas'?'Indicadores de todas tus sucursales':'Indicadores de '+(TIENDAS.find(function(t){return t.id===props.tienda;})||{}).nombre+'.')
+    re('div',null,
+      re('div',{className:'admin-overline'},'Resumen por fecha de operación'),
+      re('div',{className:'admin-page-caption'},'Del '+etiquetaDia(rango.ini)+' al '+etiquetaDia(rango.fin)+' · Horario de Oaxaca · '+(props.tienda==='todas'?'Todas las sucursales':(TIENDAS.find(function(t){return t.id===props.tienda;})||{}).nombre)),
+      re('div',{className:'admin-page-caption'},'Los cuatro indicadores usan las mismas fechas y sucursal. Las ventas reembolsadas y las transferencias internas no se incluyen en los totales.')
     ),
-    re('div',{className:'admin-kpis'},
-      kpi('Ventas de hoy',fmt(vDia),vendidasHoy.length+' operaciones','💳'),
-      kpi('Ventas del mes',fmt(vMes),'Ventas vigentes registradas','↗'),
-      kpi('Egresos del mes',fmt(gMes),gastosMes.length+' movimientos','🧾'),
-      kpi('Resultado estimado',fmt(vMes-gMes),'Ventas menos egresos registrados','◈')
-    ),
-    re('div',{className:'admin-two-col'},
-      section('Ventas de los últimos 7 días',
-        re('div',null,
-          re('div',{className:'admin-panel-sub'},'Importes diarios de ventas vigentes'),
-          re('div',{className:'admin-bars'},dias.map(function(d){return re('div',{key:d.k,className:'admin-bar-col'},
-            re('div',{className:'admin-bar-val'},d.v?new Intl.NumberFormat('es-MX',{maximumFractionDigits:0}).format(d.v):'0'),
-            re('div',{className:'admin-bar-bg'},re('div',{className:'admin-bar-fill',style:{height:(d.v?Math.max(4,d.v/maxDia*100):0)+'%'}})),
-            re('div',{className:'admin-bar-label'},d.l));}))
-        ),link('graficas','Ver gráficas')),
-      section('Saldos de Clip · Este mes',
-        re('div',null,
-          re('div',{className:'admin-panel-sub'},'Importes registrados, pendientes de conciliar con depósitos reales'),
-          re('div',{className:'admin-clip-summary'},
-            re('div',{className:'admin-clip-line'},re('span',null,'Ventas brutas'),re('strong',null,fmt(brutoClip))),
-            re('div',{className:'admin-clip-line'},re('span',null,'Comisiones registradas'),re('strong',null,'− '+fmt(comClip))),
-            re('div',{className:'admin-clip-line admin-clip-total'},re('span',null,'Neto estimado'),re('strong',null,fmt(netoClip)))
-          ),
-          sinTerminal.length?re('div',{style:{marginTop:12}},re('span',{className:'admin-chip warn'},'⚠ '+sinTerminal.length+' cobros sin terminal · '+fmt(montoSinTerminal))):
-            re('div',{style:{marginTop:12}},re('span',{className:'admin-chip good'},'Sin cobros sin terminal este mes'))
-        ),link('finanzas','Ver saldos y finanzas'))
-    ),
-    re('div',{className:'admin-two-equal'},
-      section('Ventas por sucursal · Hoy',
-        re('div',null,TIENDAS.filter(function(t){return props.tienda==='todas'||t.id===props.tienda;}).map(function(t){
-          var info=vendidasHoy.filter(function(v){return v.tienda===t.id;});
-          return re('div',{key:t.id,className:'admin-info-row'},re('div',null,
-            re('div',{className:'admin-info-primary'},t.emoji+' '+t.nombre),
-            re('div',{className:'admin-info-sub'},info.length+' operaciones')),
-            re('div',{className:'admin-info-value'},fmt(info.reduce(function(s,v){return s+(Number(v.total)||0);},0))));}))
-        ,link('ventas','Consultar ventas')),
-      section('Inventario · Alertas',
-        !conStock?re('div',{className:'admin-empty'},'No hay existencias positivas cargadas. Completa los conteos físicos para obtener alertas confiables.'):
-          alertas.length===0?re('div',{className:'admin-empty'},'No hay artículos por debajo del mínimo configurado.'):
-          re('div',null,alertas.map(function(i,idx){return re('div',{key:idx,className:'admin-info-row'},
-            re('div',null,re('div',{className:'admin-info-primary'},i.nombre),re('div',{className:'admin-info-sub'},i.tienda)),
-            re('span',{className:'admin-chip '+(i.stock<=0?'critical':'warn')},i.stock+' '+i.unidad));})),
-        link('inventario','Abrir inventario'))
-    ),
-    section('Movimientos recientes',
-      recientes.length ?
-        re('div',null,
-          recientes.map(function(x,i){
-            return re('div',{className:'admin-info-row',key:i},
-              re('div',null,
-                re('div',{className:'admin-info-primary'},x.titulo),
-                re('div',{className:'admin-info-sub'},(x.info||'')+' · '+fmtFecha(x.fecha))
-              ),
-              re('div',{className:'admin-info-value',style:{color:x.monto<0?'#aa4d42':'#1c3764'}},
-                (x.monto<0?'− ':'')+fmt(Math.abs(x.monto))
-              )
-            );
-          })
-        ) : re('div',{className:'admin-empty'},'Todavía no hay movimientos registrados.'),
-      link('historial','Movimientos por empleado'))
+    !validado?re('div',{className:'admin-panel',style:{color:C.red,fontWeight:800}},'La fecha inicial no puede ser posterior a la fecha final. Cambia el rango para mostrar los totales.'):
+    re(React.Fragment,null,
+      re('div',{className:'admin-kpis'},
+        kpi('Ventas netas de devoluciones',fmt(ventaBruta),vigentes.length+' ventas vigentes','▥'),
+        kpi('Compras y gastos registrados',fmt(gastosRegistrados),egresos.length+' registros','▤'),
+        kpi('Diferencia simple',fmt(resultado),'Ventas menos gastos; NO es utilidad contable','↗'),
+        kpi('Ticket promedio',fmt(vigentes.length?ventaBruta/vigentes.length:0),'Sobre '+vigentes.length+' ventas','◈')
+      ),
+      re('div',{className:'admin-mini-explain'},
+        re('span',null,'Reembolsos excluidos: '+reembolsadas.length+' ('+fmt(devoluciones)+')'),
+        re('span',null,'Transferencias internas excluidas: '+transferencias.length),
+        re('span',null,'Gastos sin sucursal: solo aparecen al elegir “Todas”')
+      ),
+      re('div',{className:'admin-two-col'},
+        section('Ventas por día · últimos 7 días del rango',
+          re('div',null,
+            re('div',{className:'admin-panel-sub'},'Fechas locales del negocio; sin ventas reembolsadas'),
+            dias.length?re('div',{className:'admin-bars'},dias.map(function(d){return re('div',{key:d.k,className:'admin-bar-col'},
+              re('div',{className:'admin-bar-val'},d.v?new Intl.NumberFormat('es-MX',{maximumFractionDigits:0}).format(d.v):'0'),
+              re('div',{className:'admin-bar-bg'},re('div',{className:'admin-bar-fill',style:{height:(d.v?Math.max(4,d.v/maxDia*100):0)+'%'}})),
+              re('div',{className:'admin-bar-label'},d.l));})):re('div',{className:'admin-empty'},'Sin días en el rango seleccionado')
+          ),link('ventas','Ver desglose de ventas')),
+        section('Clip · Ventas del periodo seleccionado',
+          re('div',null,
+            re('div',{className:'admin-panel-sub'},'La fecha usada es la de venta, no la del depósito bancario'),
+            re('div',{className:'admin-clip-summary'},
+              re('div',{className:'admin-clip-line'},re('span',null,'Ventas brutas Clip'),re('strong',null,fmt(brutoClip))),
+              re('div',{className:'admin-clip-line'},re('span',null,'Comisiones registradas'),re('strong',null,'− '+fmt(comClip))),
+              re('div',{className:'admin-clip-line admin-clip-total'},re('span',null,'Neto esperado Clip'),re('strong',null,fmt(netoClip)))
+            ),
+            re('div',{className:'admin-panel-sub',style:{marginTop:10}},'El neto esperado NO es el saldo bancario ni los depósitos recibidos.'),
+            sinTerminal.length?re('div',{style:{marginTop:12}},re('span',{className:'admin-chip warn'},'⚠ '+sinTerminal.length+' cobros sin terminal · '+fmt(montoSinTerminal))):
+              re('div',{style:{marginTop:12}},re('span',{className:'admin-chip good'},'Todas las ventas Clip tienen terminal asignada'))
+          ),link('finanzas','Ver saldos y finanzas'))
+      ),
+      re('div',{className:'admin-two-equal'},
+        section('Ventas por sucursal · periodo seleccionado',
+          re('div',null,porSucursal.map(function(t){return re('div',{key:t.id,className:'admin-info-row'},
+            re('div',null,re('div',{className:'admin-info-primary'},t.emoji+' '+t.nombre),re('div',{className:'admin-info-sub'},t.cantidad+' ventas vigentes')),
+            re('div',{className:'admin-info-value'},fmt(t.total)));})),link('ventas','Consultar ventas')),
+        section('Inventario · Existencias actuales',
+          !conStock?re('div',{className:'admin-empty'},'No hay existencias positivas cargadas. Completa los conteos físicos para obtener alertas confiables.'):
+            alertas.length===0?re('div',{className:'admin-empty'},'Sin artículos por debajo del mínimo configurado.'):
+            re('div',null,alertas.map(function(i,idx){return re('div',{key:idx,className:'admin-info-row'},
+              re('div',null,re('div',{className:'admin-info-primary'},i.nombre),re('div',{className:'admin-info-sub'},i.tienda)),
+              re('span',{className:'admin-chip '+(i.stock<=0?'critical':'warn')},i.stock+' '+i.unidad));})),link('inventario','Abrir inventario'))
+      ),
+      section('Últimos movimientos del periodo',
+        recientes.length?re('div',null,recientes.map(function(x,i){return re('div',{className:'admin-info-row',key:i},
+          re('div',null,re('div',{className:'admin-info-primary'},x.titulo),re('div',{className:'admin-info-sub'},(x.info||'')+' · '+fmtFecha(x.fecha))),
+          re('div',{className:'admin-info-value',style:{color:x.egreso?'#aa4d42':'#1c3764'}},
+            x.reembolso?'Excluida':x.egreso?'− '+fmt(x.monto):fmt(x.monto))
+        );})):re('div',{className:'admin-empty'},'No hay movimientos en el periodo seleccionado.'),link('historial','Movimientos por empleado'))
+    )
   );
 }
 
@@ -1902,6 +1961,12 @@ export default function AdminApp() {
   var st8=useState([]);    var ventas=st8[0];   var setVentas=st8[1];
   var st9=useState({centro:[],sanantonio:[],amburger:[],tichi:[]});
   var inv=st9[0]; var setInv=st9[1];
+  // El rango es único para Dashboard, Ventas y Compras/Gastos.
+  var stPeriodo=useState('hoy');var periodoGlobal=stPeriodo[0];var setPeriodoGlobal=stPeriodo[1];
+  var stIni=useState(hoyStr());var fechaIniGlobal=stIni[0];var setFechaIniGlobal=stIni[1];
+  var stFin=useState(hoyStr());var fechaFinGlobal=stFin[0];var setFechaFinGlobal=stFin[1];
+  var rangoGlobal=getRango(periodoGlobal,fechaIniGlobal,fechaFinGlobal);
+
 
   function mkIns(base){return base.map(function(i){return Object.assign({},i,{stock:0});});}
 
@@ -1911,9 +1976,18 @@ export default function AdminApp() {
         var rawV=await fetchAll("ventas","select=*&order=timestamp.desc")||[];
         var rawG=await fetchAll("gastos","select=*&order=timestamp.desc")||[];
         var rawI=await sbGet("inventario","select=*")||[];
-        var ventasApp=rawV.map(function(v){return{timestamp:v.timestamp,tienda:v.tienda,total:v.total||0,metodo:v.metodo||"efectivo",comisionClip:v.comision_clip||0,comisionDidi:v.comision_didi||0,items:v.items||[],estadoPago:v.estado_pago||"pagado",terminalClip:v.terminal_clip||"",netoRecibido:v.neto_recibido===null||v.neto_recibido===undefined?null:v.neto_recibido};});
-        var gastosApp=rawG.map(function(g){return{_dbId:g.id,timestamp:g.timestamp,tienda:g.tienda,seccion:g.seccion,tipo:g.tipo,monto:g.monto||0,desc:g.desc_gasto||"",insumoId:g.insumo_id||"",insumoNombre:g.insumo_nombre||"",cantidad:g.cantidad||0,unidad:g.unidad||"",metodoPago:g.metodo_pago||""};});
-        function restoreIns(base,tid){return base.map(function(ins){var row=rawI.find(function(r){return r.tienda===tid&&r.insumo_id===ins.id;});return row?Object.assign({},ins,{stock:row.stock||0,costoPorU:row.costo_por_u||null}):ins;});}
+        var rawC=await sbGet("app_catalogo_insumos","select=*").catch(function(){return [];})||[];
+        var ventasApp=rawV.map(function(v){return{timestamp:v.timestamp,tienda:v.tienda,total:Number(v.total)||0,metodo:v.metodo||"efectivo",comisionClip:Number(v.comision_clip)||0,comisionDidi:Number(v.comision_didi)||0,items:v.items||[],estadoPago:v.estado_pago||"pagado",terminalClip:v.terminal_clip||"",netoRecibido:v.neto_recibido===null||v.neto_recibido===undefined?null:Number(v.neto_recibido)};});
+        var gastosApp=rawG.map(function(g){return{_dbId:g.id,timestamp:g.timestamp,tienda:g.tienda,seccion:g.seccion,tipo:g.tipo,monto:Number(g.monto)||0,desc:g.desc_gasto||"",insumoId:g.insumo_id||"",insumoNombre:g.insumo_nombre||"",cantidad:g.cantidad||0,unidad:g.unidad||"",metodoPago:g.metodo_pago||""};});
+        function restoreIns(base,tid){
+          var known=new Set(base.map(function(i){return i.id;}));
+          var extra=rawC.filter(function(i){return i.tienda===tid&&!known.has(i.id);}).map(function(i){return {id:i.id,nombre:i.nombre,unidad:i.unidad,minimo:Number(i.minimo),stock:0};});
+          return base.concat(extra).map(function(ins){
+            var row=rawI.find(function(r){return r.tienda===tid&&r.insumo_id===ins.id;});
+            var cat=rawC.find(function(r){return r.tienda===tid&&r.id===ins.id;});
+            return Object.assign({},ins,cat?{nombre:cat.nombre,unidad:cat.unidad,minimo:Number(cat.minimo)}:{},row?{stock:Number(row.stock),costoPorU:row.costo_por_u||null}:{});
+          });
+        }
         setVentas(ventasApp);
         setGastos(gastosApp);
         setInv({
@@ -1928,11 +2002,20 @@ export default function AdminApp() {
   },[]);
 
   async function actualizarInventarioAdmin(){
-    try{var rawI=await sbGet('inventario','select=*');setInv(function(prev){
-      var n={};for(const t of ['centro','sanantonio','amburger','tichi']){
-        n[t]=(prev[t]||[]).map(i=>{const row=(rawI||[]).find(r=>r.tienda===t&&r.insumo_id===i.id);
-          return row?{...i,stock:Number(row.stock)}:i;});
-      }return n;});
+    try{
+      var [rawI,rawC]=await Promise.all([sbGet('inventario','select=*'),sbGet('app_catalogo_insumos','select=*').catch(function(){return [];})]);
+      setInv(function(prev){
+        var n={};for(const t of ['centro','sanantonio','amburger','tichi']){
+          const base=prev[t]||[];
+          const known=new Set(base.map(i=>i.id));
+          const added=(rawC||[]).filter(i=>i.tienda===t&&!known.has(i.id)).map(i=>({id:i.id,nombre:i.nombre,unidad:i.unidad,minimo:Number(i.minimo),stock:0}));
+          n[t]=base.concat(added).map(i=>{
+            const row=(rawI||[]).find(r=>r.tienda===t&&r.insumo_id===i.id);
+            const meta=(rawC||[]).find(r=>r.tienda===t&&r.id===i.id);
+            return {...i,...(meta?{nombre:meta.nombre,unidad:meta.unidad,minimo:Number(meta.minimo)}:{}),...(row?{stock:Number(row.stock)}:{})};
+          });
+        }return n;
+      });
     }catch(e){console.warn('Los datos se guardaron, pero la pantalla requiere recargar:',e.message);}
   }
   async function agregarGasto(g){
@@ -2014,22 +2097,38 @@ export default function AdminApp() {
         re('header',{className:'admin-topbar'},
           re('div',null,re('h1',{className:'admin-page-title'},pm[0]),re('p',{className:'admin-page-desc'},pm[1])),
           re('div',{className:'admin-top-actions'},
-            (tab==='resumen'||tab==='ventas')?re('select',{className:'admin-select',value:tiendaSel,onChange:function(e){setTiendaSel(e.target.value);},'aria-label':'Filtrar sucursal'},
+            (tab==='resumen'||tab==='ventas'||tab==='egresos')?re('select',{className:'admin-select',value:tiendaSel,onChange:function(e){setTiendaSel(e.target.value);},'aria-label':'Filtrar sucursal'},
               re('option',{value:'todas'},'Todas las sucursales'),TIENDAS.map(function(t){return re('option',{key:t.id,value:t.id},t.nombre);})):null,
             re('button',{className:'admin-action',onClick:function(){setModalTransf(true);},type:'button'},'⇄ Transferencia'),
             re('button',{className:'admin-action primary',onClick:function(){setModalEgr(true);},type:'button'},'+ Registrar gasto')
           )
         ),
+        (tab==='resumen'||tab==='ventas'||tab==='egresos')?re('div',{className:'admin-date-toolbar'},
+          re('label',{className:'admin-date-label'},'PERIODO'),
+          re('select',{className:'admin-select',value:periodoGlobal,onChange:function(e){setPeriodoGlobal(e.target.value);},'aria-label':'Periodo de reporte'},
+            [['hoy','Hoy'],['ayer','Ayer'],['7dias','Últimos 7 días'],['semana','Esta semana'],['mes','Este mes'],['mes_anterior','Mes anterior'],['custom','Elegir fechas']].map(function(x){return re('option',{key:x[0],value:x[0]},x[1]);})),
+          periodoGlobal==='custom'?re(React.Fragment,null,
+            re('label',{className:'admin-date-label'},'DESDE'),
+            re('input',{type:'date',className:'admin-date-input',value:fechaIniGlobal,onChange:function(e){setFechaIniGlobal(e.target.value);},'aria-label':'Fecha inicial'}),
+            re('label',{className:'admin-date-label'},'HASTA'),
+            re('input',{type:'date',className:'admin-date-input',value:fechaFinGlobal,onChange:function(e){setFechaFinGlobal(e.target.value);},'aria-label':'Fecha final'})):
+            re('div',{className:'admin-date-range'},'Del '+etiquetaDia(rangoGlobal.ini)+' al '+etiquetaDia(rangoGlobal.fin)),
+          re('div',{className:'admin-date-zone'},'Horario Oaxaca · fechas incluidas'),
+          re('button',{type:'button',className:'admin-action',onClick:function(){window.location.reload();}},'↻ Actualizar datos')
+        ):null,
         re('div',{className:'admin-content'},
-          tab==='resumen'?re(DashboardHome,{ventas:ventas,gastos:gastos,inv:inv,tienda:tiendaSel,onNavigate:setTab}):null,
+          rangoGlobal.ini>rangoGlobal.fin?re('div',{className:'admin-date-invalid'},'La fecha inicial es posterior a la fecha final. Corrige el periodo para ver datos válidos.'):null,
+          tab==='resumen'?re(DashboardHome,{ventas:ventas,gastos:gastos,inv:inv,tienda:tiendaSel,rango:rangoGlobal,onNavigate:setTab}):null,
           tab==='semana'?re('div',{className:'admin-legacy'},re(SemanaTab,{ventas:ventas,gastos:gastos})):null,
           tab==='productos'?re('div',{className:'admin-legacy'},re(ProductosTab,{ventas:ventas})):null,
           tab==='graficas'?re('div',{className:'admin-legacy'},re(GraficasTab,{ventas:ventas})):null,
-          tab==='ventas'?re('div',{className:'admin-legacy'},re(VentasAdmin,{ventas:ventas,tiendaId:tiendaSel,onTiendaChange:setTiendaSel})):null,
+          tab==='ventas'?re('div',{className:'admin-legacy'},re(VentasAdmin,{ventas:ventas,tiendaId:tiendaSel,onTiendaChange:setTiendaSel,rango:rangoGlobal})):null,
           tab==='inventario'?re('div',{className:'admin-legacy'},re(InventarioAdmin,{datos:inv,onUpdate:handleUpdate,onRefresh:actualizarInventarioAdmin})):null,
-          tab==='egresos'?re('div',{className:'admin-legacy'},re(EgresosAdmin,{gastos:gastos,ventas:ventas,onEditar:editarGasto,onEliminar:eliminarGasto})):null,
+          tab==='egresos'?re('div',{className:'admin-legacy'},re(EgresosAdmin,{gastos:gastos,ventas:ventas,tiendaId:tiendaSel,rango:rangoGlobal,onEditar:editarGasto,onEliminar:eliminarGasto})):null,
           tab==='historial'?re('div',{className:'admin-legacy'},re(HistorialEmpleados)):null,
-          tab==='finanzas'?re('div',{className:'admin-legacy'},re(ResumenTab,{ventas:ventas,gastos:gastos,inv:inv,tiendas:TIENDAS,onAgregarGasto:agregarGasto})):null
+          tab==='finanzas'?re('div',null,
+            re('div',{className:'admin-mini-explain'},'Finanzas y saldos utiliza su propio selector de mes; los saldos son estimaciones a partir de movimientos registrados, no depósitos bancarios conciliados.'),
+            re('div',{className:'admin-legacy'},re(ResumenTab,{ventas:ventas,gastos:gastos,inv:inv,tiendas:TIENDAS,onAgregarGasto:agregarGasto}))):null
         )
       )
     ),

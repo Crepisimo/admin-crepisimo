@@ -38,3 +38,15 @@
 @media(max-width:980px){.admin-layout{grid-template-columns:minmax(0,1fr)}.admin-sidebar{position:static;min-height:unset;padding:12px 16px;gap:10px}.admin-logo{border:0;padding:3px 4px}.admin-brand-sub,.admin-sidebar-footer,.admin-nav-label{display:none}.admin-nav{flex-direction:row;overflow-x:auto;padding:1px 0 5px}.admin-nav-btn{white-space:nowrap;width:auto;min-height:40px;padding:10px 12px;gap:7px;font-size:12px}.admin-nav-btn.active{box-shadow:inset 0 -3px #90b7fa}.admin-nav-icon{font-size:15px;width:auto}.admin-topbar{padding:16px 22px;min-height:unset}.admin-two-col{grid-template-columns:minmax(0,1.25fr) minmax(260px,.9fr)}}
 @media(max-width:760px){.admin-content{padding:16px 12px 32px}.admin-page-title{font-size:22px}.admin-topbar{padding:14px 16px}.admin-two-col,.admin-two-equal{grid-template-columns:minmax(0,1fr)}.admin-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.admin-kpi{padding:15px 13px;border-radius:14px}.admin-kpi-value{font-size:19px}.admin-kpi-name{font-size:11px}.admin-kpi-hint{font-size:10px}.admin-panel{padding:16px}.admin-top-actions{width:100%}.admin-select{flex:1;min-width:100px}.admin-action{flex:1;padding:0 10px}.admin-nav{gap:3px}}
 @media(max-width:390px){.admin-kpis{grid-template-columns:1fr 1fr}.admin-kpi-value{font-size:16px}.admin-kpi-ico{width:30px;height:30px}}
+
+/* Barra de fechas compartida: Dashboard, Ventas y Compras/Gastos */
+.admin-date-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:15px 30px;background:#f9fbff;border-bottom:1px solid #e3eaf5;min-height:68px}
+.admin-date-label{font-size:10px;font-weight:850;color:#60728d;letter-spacing:.8px;white-space:nowrap}
+.admin-date-input{border:1px solid #d5dff0;border-radius:11px;background:#fff;min-height:42px;min-width:143px;padding:0 12px;font-size:13px;color:#17365e}
+.admin-date-range{font-size:13px;font-weight:750;color:#263f63;white-space:nowrap}
+.admin-date-zone{font-size:11px;color:#7588a5;flex:1;min-width:150px}
+.admin-date-invalid{background:#fff3e8;border:1px solid #ffd4a0;color:#975121;border-radius:12px;padding:12px 15px;margin-bottom:14px;font-size:13px;font-weight:700}
+.admin-mini-explain{display:flex;align-items:center;gap:12px;flex-wrap:wrap;color:#516685;font-size:12px;line-height:1.5;background:#eef4ff;border:1px solid #dfe9f8;border-radius:13px;padding:11px 16px}
+.admin-mini-explain span{padding-right:12px;border-right:1px solid #d5dfed}.admin-mini-explain span:last-child{border-right:0}
+@media(max-width:980px){.admin-date-toolbar{padding:13px 22px}}
+@media(max-width:760px){.admin-date-toolbar{padding:12px 16px;gap:8px}.admin-date-range{width:100%;order:2}.admin-date-zone{min-width:0}.admin-date-input{flex:1;min-width:130px}.admin-date-toolbar .admin-action{flex:initial}}
