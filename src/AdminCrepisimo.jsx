@@ -2,7 +2,7 @@ import {apiFetch, rpc, freshId} from "./secureClient.jsx";
 import React, { useState, useEffect } from "react";
 import "./admin-theme.css";
 import CorteResumenAdmin from "./CorteResumenAdmin.jsx";
-import {fechaCaja,ventasDeFecha,siguienteFechaAutomatica} from "./corteCaja.mjs";
+import {fechaCaja,fechaHoraCaja,ventasDeFecha,siguienteFechaAutomatica} from "./corteCaja.mjs";
 
 // ═══ SUPABASE ════════════════════════════════════════════════════════
 var SB_URL = "https://ctsijalwjuzmingdxozi.supabase.co";
@@ -68,14 +68,7 @@ function impactoTransferencia(g, cuenta) {
 var ZONA_NEGOCIO = "America/Mexico_City";
 function fechaLocal(ts){return fechaCaja(ts);}
 
-function fmtFecha(ts) {
-  if (!ts) return "";
-  var d=new Date(ts);
-  if(Number.isNaN(d.getTime())) return String(ts).slice(0,16);
-  return new Intl.DateTimeFormat("es-MX",{
-    timeZone:ZONA_NEGOCIO,day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"
-  }).format(d);
-}
+function fmtFecha(ts){return fechaHoraCaja(ts);}
 function hoyStr(){return fechaLocal(new Date());}
 function cambiarDiaLocal(k,offset){
   var d=new Date(k+"T12:00:00Z");

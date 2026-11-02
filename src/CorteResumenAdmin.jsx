@@ -1,5 +1,5 @@
 import React,{useState,useEffect,useRef} from 'react';
-import {fechaCaja,resumenCaja,etiquetaGasto,metodoGasto,ZONA_CAJA,siguienteFechaAutomatica} from './corteCaja.mjs';
+import {fechaCaja,resumenCaja,etiquetaGasto,metodoGasto,horaCaja,siguienteFechaAutomatica} from './corteCaja.mjs';
 import './corteResumenAdmin.css';
 const e=React.createElement;
 const formato=n=>new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(Number(n)||0);
@@ -35,7 +35,7 @@ export default function CorteResumenAdmin({ventas=[],gastos=[],fechaSeleccionada
       ),
       e('h4',null,`Detalle de gastos (${r.gastos.length})`),
       r.gastos.length?e('div',{className:'cra-list'},r.gastos.slice().sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp)).map((g,i)=>e('div',{className:'cra-expense',key:g._dbId||i},
-        e('div',null,e('b',null,etiquetaGasto(g)),e('small',null,`${new Intl.DateTimeFormat('es-MX',{timeZone:ZONA_CAJA,hour:'2-digit',minute:'2-digit'}).format(new Date(g.timestamp))} · ${medios[metodoGasto(g)]||'Otro'}`)),e('strong',null,formato(g.monto))
+        e('div',null,e('b',null,etiquetaGasto(g)),e('small',null,`${horaCaja(g.timestamp)} · ${medios[metodoGasto(g)]||'Otro'}`)),e('strong',null,formato(g.monto))
       ))):e('p',{className:'cra-muted'},'Sin gastos de caja para esta fecha y sucursal.'),
       r.movimientosSinMetodo>0&&e('p',{className:'cra-warning'},'Hay gastos sin método registrado. No se restaron del efectivo. Revisa su forma de pago.'),
       e('p',{className:'cra-muted'},'Consulta por fecha de venta, no por fecha de depósito. No sustituye un cierre de turno conciliado con banco ni guarda el efectivo contado.')
